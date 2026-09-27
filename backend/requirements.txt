@@ -3,5 +3,6 @@ uvicorn[standard]>=0.30
 google-genai>=2.00
 python-dotenv>=1.0
 pydantic>=2.8
+redis>=5.0
 pytest
 httpx

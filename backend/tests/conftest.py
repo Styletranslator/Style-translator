@@ -58,15 +58,41 @@ class FakeGeminiClient:
         return self.reply
 
 
+class FakeCache:
+    """TranslationCache 대역. 실제 Redis 없이 hit/miss를 검증합니다.
+
+    구현이 아니라 프로토콜에만 의존하므로 테스트에 Redis 서버가 필요 없습니다
+    (FakeGeminiClient와 같은 이유).
+    """
+
+    def __init__(self):
+        self.store: dict = {}
+        self.keys_requested: list = []
+
+    def get(self, key: str):
+        self.keys_requested.append(key)
+        return self.store.get(key)
+
+    def set(self, key: str, value) -> None:
+        self.store[key] = value
+
+
 @pytest.fixture
 def fake_client():
     return FakeGeminiClient()
 
 
 @pytest.fixture
-def client(fake_client):
-    """FakeGeminiClient가 주입된 TestClient."""
-    app.dependency_overrides[get_translate_service] = lambda: TranslateService(fake_client)
+def fake_cache():
+    return FakeCache()
+
+
+@pytest.fixture
+def client(fake_client, fake_cache):
+    """FakeGeminiClient와 FakeCache가 주입된 TestClient."""
+    app.dependency_overrides[get_translate_service] = lambda: TranslateService(
+        fake_client, fake_cache
+    )
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
@@ -85,7 +111,9 @@ def make_client():
 
     def _make(*, raise_server_exceptions: bool = True, **kwargs):
         fake = FakeGeminiClient(**kwargs)
-        app.dependency_overrides[get_translate_service] = lambda: TranslateService(fake)
+        app.dependency_overrides[get_translate_service] = lambda: TranslateService(
+            fake, FakeCache()
+        )
         return TestClient(app, raise_server_exceptions=raise_server_exceptions), fake
 
     yield _make

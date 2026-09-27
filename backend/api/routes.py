@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends
 
+from clients.cache import translation_cache
 from clients.gemini import gemini_client
 from core.envelope import SuccessResponse
 from models.schemas import HealthData, TranslateRequest, TranslateResponse
@@ -9,7 +10,7 @@ router = APIRouter()
 
 
 def get_translate_service() -> TranslateService:
-    return TranslateService(gemini_client)
+    return TranslateService(gemini_client, translation_cache)
 
 
 @router.get("/health", response_model=SuccessResponse[HealthData])
