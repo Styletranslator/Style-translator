@@ -34,7 +34,9 @@ pytest                                    # 테스트 (pytest.ini: pythonpath=.,
 
 - `GET /health` → `{"status": "ok", "api_key_configured": bool}`
 - `GET /styles` → `{key: label}` (`STYLES`에서 생성)
-- `POST /translate` — `{text, target_lang, style}` → `{candidates: [str, str, str], style}` (서로 다른 번역 후보 3개)
+- `POST /translate` — `{text, target_lang, style}` (text ≤ 10,000자) → `{candidates: [...], style}`
+  - 청크 1개(≤ 2,000자): 서로 다른 번역 후보 3개
+  - 청크 2개 이상: 청크별 번역을 이어붙인 결과 1개
 
 에러는 `services/translate.py`가 `AppError` 하위 예외를 raise하고
 `core/error_handlers.py`가 `{"success": false, "error": {"code", "message"}}`로 변환합니다.
@@ -45,7 +47,7 @@ pytest                                    # 테스트 (pytest.ini: pythonpath=.,
 | API 키 미설정 | 500 | `API_KEY_NOT_CONFIGURED` |
 | 알 수 없는 스타일 | 400 | `UNKNOWN_STYLE` |
 | 빈 텍스트 | 400 | `EMPTY_TEXT` |
-| Gemini 호출 실패 / 응답이 문자열 3개 배열이 아님 | 502 | `TRANSLATION_ENGINE_ERROR` |
+| Gemini 호출 실패 / 응답이 요청한 개수의 문자열 배열이 아님 | 502 | `TRANSLATION_ENGINE_ERROR` |
 | 요청 스키마 검증 실패 | 422 | `VALIDATION_ERROR` (`RequestValidationError` 핸들러) |
 | 그 외 미처리 예외 | 500 | `INTERNAL_ERROR` (원문은 로그로만, 클라이언트엔 비노출) |
 
@@ -53,7 +55,11 @@ pytest                                    # 테스트 (pytest.ini: pythonpath=.,
 
 `clients/gemini.py` — 모델 `gemini-3.5-flash`, temperature 0.3, max_output_tokens 4096.
 structured output(`response_mime_type="application/json"`, `response_schema=list[str]`)으로 JSON 문자열 배열을 받고,
-`TranslateService._parse_candidates()`가 후보 `CANDIDATE_COUNT`(3)개인지 검증합니다.
+`TranslateService._parse_candidates()`가 요청한 후보 개수인지 검증합니다.
+
+입력은 `chunk_text()`가 문단 → 문장 → 글자 순으로 `CHUNK_SIZE`(2,000자) 이하 청크로 나눕니다.
+청크 1개면 호출 1번에 후보 `CANDIDATE_COUNT`(3)개, 2개 이상이면 청크마다 순차 호출해 후보 1개씩 받고
+원문의 구분 공백을 끼워 이어붙입니다 (`"".join(chunks) == text` 불변식).
 `GEMINI_API_KEY`가 없으면 `_client=None`이 되고 `is_configured`가 False (import 자체는 성공하므로 CI에서 키 없이 테스트 가능).
 
 프롬프트는 `TranslateService._build_system_prompt()`에서 `target_lang` + 스타일 `description` + few-shot `examples`를 한국어 시스템 지시문에 주입하고, 서로 다른 후보 3개를 JSON 배열로 출력하라는 지시로 끝납니다.
