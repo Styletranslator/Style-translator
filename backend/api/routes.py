@@ -5,7 +5,6 @@ from clients.gemini import gemini_client
 from core.envelope import SuccessResponse
 from models.schemas import (
     HealthData,
-    LongTranslateRequest,
     LongTranslateResponse,
     TranslateRequest,
     TranslateResponse,
@@ -38,7 +37,7 @@ def translate(req: TranslateRequest, service: TranslateService = Depends(get_tra
 
 
 @router.post("/translate/long", response_model=SuccessResponse[LongTranslateResponse])
-def translate_long(req: LongTranslateRequest, service: TranslateService = Depends(get_translate_service)):
+def translate_long(req: TranslateRequest, service: TranslateService = Depends(get_translate_service)):
     translation = service.translate_long(req.text, req.target_lang, req.style)
     data = LongTranslateResponse(translation=translation, style=req.style)
     return SuccessResponse(data=data)

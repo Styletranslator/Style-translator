@@ -172,8 +172,18 @@ def test_translate_rejects_wrong_type(client):
     assert client.post("/translate", json=payload(text=123)).status_code == 422
 
 
-def test_translate_rejects_text_over_max_length(client):
+def test_translate_rejects_text_over_short_limit(client, fake_client):
+    """짧은 번역 한도를 넘으면 Gemini를 부르지 않고 장문 엔드포인트를 안내해야 함."""
     res = client.post("/translate", json=payload(text="가" * (SHORT_LIMIT + 1)))
+
+    assert res.status_code == 400
+    assert error_code(res) == "TRANSLATE_ERROR"
+    assert "/translate/long" in error_message(res)
+    assert fake_client.calls == []
+
+
+def test_translate_rejects_text_over_max_length(client):
+    res = client.post("/translate", json=payload(text="가" * 10001))
 
     assert res.status_code == 422
     assert error_code(res) == "VALIDATION_ERROR"

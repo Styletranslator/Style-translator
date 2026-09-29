@@ -26,7 +26,7 @@ pytest                                    # 테스트 (pytest.ini: pythonpath=.,
 | `core/envelope.py` | `SuccessResponse[T]` — 성공 응답 공통 껍데기 |
 | `core/exceptions.py` | `AppError` 및 하위 예외 — FastAPI를 모르는 순수 도메인 예외 |
 | `core/error_handlers.py` | `AppError` / 검증 실패 / 미처리 예외 → HTTP 변환. `register_exception_handlers(app)` |
-| `models/schemas.py` | `TranslateRequest` / `TranslateResponse` / `LongTranslate*` / `HealthData` |
+| `models/schemas.py` | `TranslateRequest` (두 번역 엔드포인트 공용, text ≤ 10,000자) / `TranslateResponse` / `LongTranslateResponse` / `HealthData` |
 | `styles.py` | `STYLES` 딕셔너리 — 스타일 단일 정의처 |
 
 ## Endpoints
@@ -36,7 +36,7 @@ pytest                                    # 테스트 (pytest.ini: pythonpath=.,
 
 - `GET /health` → `{"status": "ok", "api_key_configured": bool}`
 - `GET /styles` → `{key: label}` (`STYLES`에서 생성)
-- `POST /translate` — `{text, target_lang, style}` (text ≤ `SHORT_LIMIT` 1,000자) → `{candidates: [str, str, str], style}` (서로 다른 후보 3개)
+- `POST /translate` — `{text, target_lang, style}` (text ≤ `SHORT_LIMIT` 1,000자, 초과 시 400 `TRANSLATE_ERROR`) → `{candidates: [str, str, str], style}` (서로 다른 후보 3개)
 - `POST /translate/long` — 같은 요청 (text ≤ 10,000자) → `{translation: str, style}` (청크별 번역을 이어붙인 결과 1개, 캐시 안 함)
 
 에러는 `services/translate.py`가 `AppError` 하위 예외를 raise하고
@@ -48,6 +48,7 @@ pytest                                    # 테스트 (pytest.ini: pythonpath=.,
 | API 키 미설정 | 500 | `API_KEY_NOT_CONFIGURED` |
 | 알 수 없는 스타일 | 400 | `UNKNOWN_STYLE` |
 | 빈 텍스트 | 400 | `EMPTY_TEXT` |
+| 서비스 요청 오류 (예: `/translate`에 `SHORT_LIMIT` 초과) | 400 | `TRANSLATE_ERROR` (`TranslateError` — 사유는 message로) |
 | Gemini 호출 실패 / 응답이 요청한 개수의 문자열 배열이 아님 | 502 | `TRANSLATION_ENGINE_ERROR` |
 | 요청 스키마 검증 실패 | 422 | `VALIDATION_ERROR` (`RequestValidationError` 핸들러) |
 | 그 외 미처리 예외 | 500 | `INTERNAL_ERROR` (원문은 로그로만, 클라이언트엔 비노출) |

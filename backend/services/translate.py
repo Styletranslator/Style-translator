@@ -7,6 +7,7 @@ from clients.gemini import GeminiClient
 from core.exceptions import (
     ApiKeyNotConfiguredError,
     EmptyTextError,
+    TranslateError,
     TranslationEngineError,
     UnknownStyleError,
 )
@@ -40,6 +41,8 @@ class TranslateService:
     def translate(self, text: str, target_lang: str, style: str) -> list[str]:
         """짧은 입력 — 호출 1번에 서로 다른 후보 CANDIDATE_COUNT개."""
         style_def = self._validate(text, style)
+        if len(text) > SHORT_LIMIT:
+            raise TranslateError(f"{SHORT_LIMIT}자를 넘는 글은 장문 번역(/translate/long)을 사용하세요.")
 
         # 검증을 통과한 요청만 캐시를 봅니다 — 잘못된 요청을 캐싱할 이유가 없습니다.
         cache_key = build_cache_key(text, target_lang, style)
