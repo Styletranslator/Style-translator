@@ -10,6 +10,8 @@ import pytest
 from google.genai import errors as genai_errors
 
 from conftest import DEFAULT_CANDIDATES, error_code, error_message, success_data
+from services.chunking import chunk_text
+from services.translate import SHORT_LIMIT
 from styles import STYLES
 
 
@@ -171,7 +173,61 @@ def test_translate_rejects_wrong_type(client):
 
 
 def test_translate_rejects_text_over_max_length(client):
-    res = client.post("/translate", json=payload(text="가" * 2001))
+    res = client.post("/translate", json=payload(text="가" * (SHORT_LIMIT + 1)))
 
     assert res.status_code == 422
     assert error_code(res) == "VALIDATION_ERROR"
+
+
+# ---------- POST /translate/long (장문, 청크별 1개) ----------
+
+ONE_REPLY = json.dumps(["번역"], ensure_ascii=False)
+
+
+def test_translate_long_short_text_calls_once(make_client):
+    test_client, fake = make_client(reply=ONE_REPLY)
+
+    res = test_client.post("/translate/long", json=payload())
+
+    assert res.status_code == 200
+    assert success_data(res) == {"translation": "번역", "style": "general"}
+    assert len(fake.calls) == 1
+    assert "1개" in fake.calls[0]["system_instruction"]
+
+
+def test_translate_long_chunks_and_keeps_paragraphs(make_client):
+    test_client, fake = make_client(reply=ONE_REPLY)
+    text = "가" * 1500 + "\n\n" + "나" * 1500
+
+    res = test_client.post("/translate/long", json=payload(text=text))
+
+    assert success_data(res)["translation"] == "번역\n\n번역"
+    assert [c["contents"] for c in fake.calls] == ["가" * 1500, "나" * 1500]
+
+
+def test_translate_long_rejects_text_over_max_length(client):
+    res = client.post("/translate/long", json=payload(text="가" * 10001))
+
+    assert res.status_code == 422
+
+
+def test_translate_long_returns_502_when_gemini_fails(make_client):
+    test_client, fake = make_client()
+
+    def boom(contents, system_instruction):
+        raise genai_errors.APIError(503, {"error": {"message": "service unavailable"}})
+
+    fake.generate = boom
+
+    res = test_client.post("/translate/long", json=payload())
+
+    assert res.status_code == 502
+    assert error_code(res) == "TRANSLATION_ENGINE_ERROR"
+
+
+def test_chunk_text_preserves_text_and_respects_limit():
+    text = "짧은 문단.\n\n" + "긴 문장입니다. " * 300 + "\n\n" + "가" * 4500
+    chunks = chunk_text(text)
+
+    assert "".join(chunks) == text
+    assert all(len(c) <= 2000 for c in chunks)

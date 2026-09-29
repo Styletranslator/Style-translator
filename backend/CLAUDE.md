@@ -17,15 +17,16 @@ pytest                                    # 테스트 (pytest.ini: pythonpath=.,
 | 파일 | 역할 |
 |---|---|
 | `main.py` | FastAPI 인스턴스, CORS 미들웨어, 라우터 등록 |
-| `api/routes.py` | 엔드포인트 3개 + `get_translate_service()` DI 팩토리 |
+| `api/routes.py` | 엔드포인트 4개 + `get_translate_service()` DI 팩토리 |
 | `services/translate.py` | `TranslateService` — 검증, 프롬프트 조립, 클라이언트 호출 |
+| `services/chunking.py` | `chunk_text()` — 장문을 문단 → 문장 → 글자 순으로 `CHUNK_SIZE` 이하 청크로 분할 (순수 함수) |
 | `clients/gemini.py` | `GeminiClient` — Gemini SDK 래퍼. 모듈 로드 시 싱글톤 `gemini_client` 생성 |
 | `clients/cache.py` | `TranslationCache` 프로토콜 + `RedisCache` / `NullCache`. 싱글톤 `translation_cache` |
 | `core/config.py` | `Settings` — 환경변수, 모델명, CORS 허용 오리진, 캐시 설정 |
 | `core/envelope.py` | `SuccessResponse[T]` — 성공 응답 공통 껍데기 |
 | `core/exceptions.py` | `AppError` 및 하위 예외 — FastAPI를 모르는 순수 도메인 예외 |
 | `core/error_handlers.py` | `AppError` / 검증 실패 / 미처리 예외 → HTTP 변환. `register_exception_handlers(app)` |
-| `models/schemas.py` | `TranslateRequest` / `TranslateResponse` / `HealthData` |
+| `models/schemas.py` | `TranslateRequest` / `TranslateResponse` / `LongTranslate*` / `HealthData` |
 | `styles.py` | `STYLES` 딕셔너리 — 스타일 단일 정의처 |
 
 ## Endpoints
@@ -35,9 +36,8 @@ pytest                                    # 테스트 (pytest.ini: pythonpath=.,
 
 - `GET /health` → `{"status": "ok", "api_key_configured": bool}`
 - `GET /styles` → `{key: label}` (`STYLES`에서 생성)
-- `POST /translate` — `{text, target_lang, style}` (text ≤ 10,000자) → `{candidates: [...], style}`
-  - 청크 1개(≤ 2,000자): 서로 다른 번역 후보 3개
-  - 청크 2개 이상: 청크별 번역을 이어붙인 결과 1개
+- `POST /translate` — `{text, target_lang, style}` (text ≤ `SHORT_LIMIT` 1,000자) → `{candidates: [str, str, str], style}` (서로 다른 후보 3개)
+- `POST /translate/long` — 같은 요청 (text ≤ 10,000자) → `{translation: str, style}` (청크별 번역을 이어붙인 결과 1개, 캐시 안 함)
 
 에러는 `services/translate.py`가 `AppError` 하위 예외를 raise하고
 `core/error_handlers.py`가 `{"success": false, "error": {"code", "message"}}`로 변환합니다.
@@ -58,12 +58,13 @@ pytest                                    # 테스트 (pytest.ini: pythonpath=.,
 structured output(`response_mime_type="application/json"`, `response_schema=list[str]`)으로 JSON 문자열 배열을 받고,
 `TranslateService._parse_candidates()`가 요청한 후보 개수인지 검증합니다.
 
-입력은 `chunk_text()`가 문단 → 문장 → 글자 순으로 `CHUNK_SIZE`(2,000자) 이하 청크로 나눕니다.
-청크 1개면 호출 1번에 후보 `CANDIDATE_COUNT`(3)개, 2개 이상이면 청크마다 순차 호출해 후보 1개씩 받고
-원문의 구분 공백을 끼워 이어붙입니다 (`"".join(chunks) == text` 불변식).
+`translate()`는 호출 1번에 후보 `CANDIDATE_COUNT`(3)개. 한글은 1,000자를 넘으면 후보 3개가 4096 토큰을 넘겨 잘릴 수 있어 `SHORT_LIMIT`로 막습니다.
+`translate_long()`은 `chunk_text()`가 문단 → 문장 → 글자 순으로 `CHUNK_SIZE`(2,000자) 이하 청크로 나누고,
+청크마다 순차 호출해 1개씩 받아 원문의 구분 공백을 끼워 이어붙입니다 (`"".join(chunks) == text` 불변식).
+Gemini 호출과 `APIError` → `TranslationEngineError` 변환은 `_generate()` 한곳에서 합니다.
 `GEMINI_API_KEY`가 없으면 `_client=None`이 되고 `is_configured`가 False (import 자체는 성공하므로 CI에서 키 없이 테스트 가능).
 
-프롬프트는 `TranslateService._build_system_prompt()`에서 `target_lang` + 스타일 `description` + few-shot `examples`를 한국어 시스템 지시문에 주입하고, 서로 다른 후보 3개를 JSON 배열로 출력하라는 지시로 끝납니다.
+프롬프트는 `TranslateService._build_system_prompt()`에서 `target_lang` + 스타일 `description` + few-shot `examples`를 한국어 시스템 지시문에 주입하고, 요청한 개수(3개 또는 1개)를 JSON 배열로 출력하라는 지시로 끝납니다.
 `FakeGeminiClient`의 `reply`도 JSON 배열 문자열이어야 합니다 (`conftest.DEFAULT_REPLY`).
 
 ## Caching

@@ -63,6 +63,15 @@ describe('fetchTranslation', () => {
     ).resolves.toEqual(data)
   })
 
+  it('SHORT_LIMIT를 넘으면 /translate/long으로 보내고 candidates 형태로 맞춘다', async () => {
+    const spy = mockFetch(ok({ translation: '장문 번역', style: 'general' }))
+
+    await expect(
+      fetchTranslation({ text: '가'.repeat(1001), targetLang: '영어', style: 'general' }),
+    ).resolves.toEqual({ candidates: ['장문 번역'], style: 'general' })
+    expect(spy.mock.calls[0][0]).toBe(`${API_BASE}/translate/long`)
+  })
+
   // 백엔드 공통 error envelope({ success: false, error: { code, message } })에 의존하는 테스트.
   // 형식이 또 바뀌면 client.js의 unwrap()과 함께 여기도 수정해야 합니다.
   it('실패 시 error.message를 에러로 던지고 error.code를 실어 보낸다', async () => {
