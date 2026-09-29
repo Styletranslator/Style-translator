@@ -3,6 +3,7 @@ import re
 
 from google.genai import errors as genai_errors
 
+from clients.cache import NullCache, TranslationCache, build_cache_key
 from clients.gemini import GeminiClient
 from core.exceptions import (
     ApiKeyNotConfiguredError,
@@ -40,9 +41,24 @@ def chunk_text(text: str, limit: int = CHUNK_SIZE) -> list[str]:
     return chunks
 
 
+def _is_valid_candidates(value) -> bool:
+    """약속된 형식(비어 있지 않은 문자열 CANDIDATE_COUNT개)인지 확인합니다.
+
+    모델 응답과 캐시에서 꺼낸 값에 같은 기준을 적용하기 위해 분리했습니다.
+    """
+    return (
+        isinstance(value, list)
+        and len(value) == CANDIDATE_COUNT
+        and all(isinstance(c, str) and c.strip() for c in value)
+    )
+
+
 class TranslateService:
-    def __init__(self, client: GeminiClient):
+    def __init__(self, client: GeminiClient, cache: TranslationCache | None = None):
         self.client = client
+        # 캐시를 넘기지 않으면 항상 miss인 NullCache를 씁니다 — 호출부가 캐시 유무를
+        # 분기하지 않아도 되도록.
+        self.cache = cache or NullCache()
 
     def translate(self, text: str, target_lang: str, style: str) -> list[str]:
         if not self.client.is_configured:
@@ -51,6 +67,14 @@ class TranslateService:
             raise UnknownStyleError(f"알 수 없는 스타일: {style}")
         if not text.strip():
             raise EmptyTextError("번역할 텍스트가 비어 있습니다.")
+
+        # 검증을 통과한 요청만 캐시를 봅니다 — 잘못된 요청을 캐싱할 이유가 없습니다.
+        cache_key = build_cache_key(text, target_lang, style)
+        cached = self.cache.get(cache_key)
+        # 형식을 확인하고 씁니다 — KEY_PREFIX를 올리지 않은 채 저장 형식이 바뀌어도
+        # 옛 값이 그대로 나가지 않고 miss로 처리됩니다.
+        if _is_valid_candidates(cached):
+            return cached
 
         style_def = STYLES[style]
         chunks = chunk_text(text)
@@ -73,6 +97,11 @@ class TranslateService:
             # 업스트림 예외 원문은 로그로만 남김 (exc_info 체이닝) — 내부 정보라 클라이언트엔 비노출.
             raise TranslationEngineError("번역 엔진 호출에 실패했습니다. 잠시 후 다시 시도해주세요.") from exc
 
+        # 파싱에 실패하면 여기서 502가 나가고 캐시에는 아무것도 들어가지 않습니다.
+        candidates = self._parse_candidates(result)
+        self.cache.set(cache_key, candidates)
+        return candidates
+
     def list_styles(self) -> dict:
         return {key: value["label"] for key, value in STYLES.items()}
 
@@ -83,11 +112,7 @@ class TranslateService:
             candidates = json.loads(raw)
         except json.JSONDecodeError as exc:
             raise TranslationEngineError(message) from exc
-        if (
-            not isinstance(candidates, list)
-            or len(candidates) != count
-            or not all(isinstance(c, str) and c.strip() for c in candidates)
-        ):
+        if not _is_valid_candidates(candidates):
             raise TranslationEngineError(message)
         return [c.strip() for c in candidates]
 
