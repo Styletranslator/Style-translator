@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import './App.css'
-import { fetchStyles } from './api/client'
+import { fetchStyles, MAX_LENGTH } from './api/client'
 import { useTranslate } from './hooks/useTranslate'
 
 const FALLBACK_STYLES = {
@@ -42,6 +42,7 @@ export default function App() {
           value={text}
           onChange={(e) => setText(e.target.value)}
           rows={5}
+          maxLength={MAX_LENGTH}
         />
 
         <div className="controls">
@@ -76,7 +77,10 @@ export default function App() {
 
         {candidates.length > 0 && (
           <div className="result">
-            <span className="result__label">결과 · {styles[style] ?? style} · 마음에 드는 번역을 고르세요</span>
+            <span className="result__label">
+              결과 · {styles[style] ?? style}
+              {candidates.length > 1 && ' · 마음에 드는 번역을 고르세요'}
+            </span>
             {candidates.map((candidate, i) => (
               <button
                 key={i}
