@@ -18,7 +18,11 @@ async def app_error_handler(_request: Request, exc: AppError):
         logger.error("AppError: %s", exc.code, exc_info=exc)
     else:
         logger.warning("AppError: %s - %s", exc.code, exc.message)
-    return JSONResponse(status_code=exc.status_code, content=_error_body(exc.code, exc.message))
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=_error_body(exc.code, exc.message),
+        headers=exc.headers,
+    )
 
 
 async def validation_error_handler(_request: Request, exc: RequestValidationError):
