@@ -20,6 +20,7 @@ pytest                                    # 테스트 (pytest.ini: pythonpath=.,
 | `api/routes.py` | 엔드포인트 3개 + `get_translate_service()` DI 팩토리 |
 | `services/translate.py` | `TranslateService` — 검증, 프롬프트 조립, 클라이언트 호출 |
 | `clients/gemini.py` | `GeminiClient` — Gemini SDK 래퍼. 모듈 로드 시 싱글톤 `gemini_client` 생성 |
+| `clients/redis_client.py` | 공용 Redis 클라이언트 (타임아웃 설정 포함). 싱글톤 `redis_client` |
 | `clients/cache.py` | `TranslationCache` 프로토콜 + `RedisCache` / `NullCache`. 싱글톤 `translation_cache` |
 | `core/config.py` | `Settings` — 환경변수, 모델명, CORS 허용 오리진, 캐시 설정 |
 | `core/envelope.py` | `SuccessResponse[T]` — 성공 응답 공통 껍데기 |
@@ -75,6 +76,9 @@ structured output(`response_mime_type="application/json"`, `response_schema=list
   테스트에 Redis 서버가 필요 없습니다.
 - **캐시 실패는 절대 요청을 죽이지 않습니다.** `RedisCache`의 `get()`/`set()`은 모든 예외를 삼키고
   로그만 남깁니다 — Redis가 죽으면 느려질 뿐 번역은 정상 동작해야 합니다.
+- "느려질 뿐"이 성립하는 건 `clients/redis_client.py`의 타임아웃(`REDIS_TIMEOUT_SECONDS`, 0.5초) 덕분입니다.
+  redis-py 기본값은 무한 대기라, 타임아웃 없이 Redis가 응답하지 않으면 요청 스레드가 전부 묶여
+  `/health`까지 멈춥니다. **Redis 클라이언트를 새로 만들지 말고 공용 `redis_client`를 쓰세요.**
 - 검증 실패와 Gemini 호출 실패는 캐싱하지 않습니다 (실패를 캐싱하면 TTL 동안 계속 실패).
 
 | 환경변수 | 기본값 | 설명 |
