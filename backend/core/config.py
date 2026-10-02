@@ -13,7 +13,7 @@ class Settings:
     # 비어 있으면 둘 다 꺼진 채로 동작합니다.
     REDIS_URL: str = os.environ.get("REDIS_URL", "")
     # Redis 연결/명령 타임아웃. 평소 응답은 1ms 미만이라 넉넉하고, 장애 시 요청이 이만큼만 늦어집니다.
-    REDIS_TIMEOUT_SECONDS: float = 0.5
+    REDIS_TIMEOUT_SECONDS: float = float(os.environ.get("REDIS_TIMEOUT_SECONDS", "0.5"))
 
     # 번역 캐시 (clients/cache.py).
     CACHE_ENABLED: bool = os.environ.get("CACHE_ENABLED", "true").lower() != "false"
