@@ -17,12 +17,14 @@ pytest                                    # 테스트 (pytest.ini: pythonpath=.,
 | 파일 | 역할 |
 |---|---|
 | `main.py` | FastAPI 인스턴스, CORS 미들웨어, 라우터 등록 |
-| `api/routes.py` | 엔드포인트 4개 + `get_translate_service()` DI 팩토리 |
+| `api/routes.py` | 엔드포인트 4개 + `get_translate_service()` / `get_rate_limiter()` DI 팩토리 + `enforce_rate_limit` |
 | `services/translate.py` | `TranslateService` — 검증, 프롬프트 조립, 클라이언트 호출 |
 | `services/chunking.py` | `chunk_text()` — 장문을 문단 → 문장 → 글자 순으로 `CHUNK_SIZE` 이하 청크로 분할 (순수 함수) |
 | `clients/gemini.py` | `GeminiClient` — Gemini SDK 래퍼. 모듈 로드 시 싱글톤 `gemini_client` 생성 |
+| `clients/redis_client.py` | 공용 Redis 클라이언트 (타임아웃 설정 포함). 싱글톤 `redis_client` — 캐시와 rate limiter가 공유 |
 | `clients/cache.py` | `TranslationCache` 프로토콜 + `RedisCache` / `NullCache`. 싱글톤 `translation_cache` |
-| `core/config.py` | `Settings` — 환경변수, 모델명, CORS 허용 오리진, 캐시 설정 |
+| `clients/rate_limiter.py` | `RateLimiter` 프로토콜 + `RedisRateLimiter` / `NullRateLimiter`. 싱글톤 `rate_limiter` |
+| `core/config.py` | `Settings` — 환경변수, 모델명, CORS 허용 오리진, 캐시 / rate limit 설정 |
 | `core/envelope.py` | `SuccessResponse[T]` — 성공 응답 공통 껍데기 |
 | `core/exceptions.py` | `AppError` 및 하위 예외 — FastAPI를 모르는 순수 도메인 예외 |
 | `core/error_handlers.py` | `AppError` / 검증 실패 / 미처리 예외 → HTTP 변환. `register_exception_handlers(app)` |
@@ -49,6 +51,7 @@ pytest                                    # 테스트 (pytest.ini: pythonpath=.,
 | 알 수 없는 스타일 | 400 | `UNKNOWN_STYLE` |
 | 빈 텍스트 | 400 | `EMPTY_TEXT` |
 | 서비스 요청 오류 (예: `/translate`에 `SHORT_LIMIT` 초과) | 400 | `TRANSLATE_ERROR` (`TranslateError` — 사유는 message로) |
+| 요청 횟수 한도 초과 (`/translate`만) | 429 | `RATE_LIMIT_EXCEEDED` (`Retry-After` 헤더 포함) |
 | Gemini 호출 실패 / 응답이 요청한 개수의 문자열 배열이 아님 | 502 | `TRANSLATION_ENGINE_ERROR` |
 | 요청 스키마 검증 실패 | 422 | `VALIDATION_ERROR` (`RequestValidationError` 핸들러) |
 | 그 외 미처리 예외 | 500 | `INTERNAL_ERROR` (원문은 로그로만, 클라이언트엔 비노출) |
@@ -83,6 +86,9 @@ Gemini 호출과 `APIError` → `TranslationEngineError` 변환은 `_generate()`
   테스트에 Redis 서버가 필요 없습니다.
 - **캐시 실패는 절대 요청을 죽이지 않습니다.** `RedisCache`의 `get()`/`set()`은 모든 예외를 삼키고
   로그만 남깁니다 — Redis가 죽으면 느려질 뿐 번역은 정상 동작해야 합니다.
+- "느려질 뿐"이 성립하는 건 `clients/redis_client.py`의 타임아웃(`REDIS_TIMEOUT_SECONDS`, 0.5초) 덕분입니다.
+  redis-py 기본값은 무한 대기라, 타임아웃 없이 Redis가 응답하지 않으면 요청 스레드가 전부 묶여
+  `/health`까지 멈춥니다. **Redis 클라이언트를 새로 만들지 말고 공용 `redis_client`를 쓰세요.**
 - 검증 실패와 Gemini 호출 실패는 캐싱하지 않습니다 (실패를 캐싱하면 TTL 동안 계속 실패).
 
 | 환경변수 | 기본값 | 설명 |
@@ -92,6 +98,30 @@ Gemini 호출과 `APIError` → `TranslationEngineError` 변환은 `_generate()`
 | `CACHE_TTL_SECONDS` | `3600` | 캐시 항목 만료 시간 |
 
 로컬에서 Redis 없이 개발해도 됩니다. `REDIS_URL`을 비워두면 매번 Gemini를 호출할 뿐입니다.
+
+## Rate Limiting
+
+`POST /translate`만 클라이언트 IP마다 요청 횟수를 제한합니다 (`/health`, `/styles`는 제외).
+`POST /translate/long`은 아직 제한이 없습니다 — 청크 수만큼 Gemini를 부르고 캐시도 안 하지만, 적용 여부와 방식(요청당 1회 / 청크 수만큼 차감)은 팀 회의에서 정하기로 함.
+라우트의 `dependencies=[Depends(enforce_rate_limit)]`로 걸려 있어 서비스 레이어보다 먼저 실행됩니다.
+그래서 한도를 넘긴 요청은 Gemini에 닿지 않고, **캐시 hit도 횟수에 포함됩니다.**
+
+- Redis 고정 윈도우 카운터 — key `ratelimit:{ip}:{윈도우 번호}`에 `INCR` + `EXPIRE`를
+  MULTI/EXEC 파이프라인으로 보냅니다. 카운터가 Redis에 있어 여러 프로세스/인스턴스가 한도를 공유합니다.
+- 초과 시 `RateLimitExceededError` → 429 + `Retry-After` 헤더. 메시지에도 남은 초가 들어갑니다
+  (프론트엔드는 에러 메시지를 그대로 보여주므로 프론트 수정 없이 사용자에게 전달됨).
+  응답 헤더가 필요한 예외는 `AppError.headers`에 넣으면 `app_error_handler`가 실어 보냅니다.
+- **캐시와 같은 원칙으로 fail-open입니다.** `REDIS_URL`이 없거나 Redis가 죽으면 제한 없이 통과하고
+  로그만 남깁니다. rate limiter 장애가 곧 서비스 장애가 되면 안 되기 때문입니다.
+- 클라이언트 식별은 `request.client.host`입니다. 프록시 뒤에 배포하면 모든 요청이 프록시 IP로 보이므로
+  `X-Forwarded-For` 처리가 필요합니다 (`api/routes.py` 주석 참고).
+- 부하 테스트 때는 `RATE_LIMIT_ENABLED=false`로 끄세요. 켜 두면 한 IP에서 보내는 부하가 전부 429로 막힙니다.
+
+| 환경변수 | 기본값 | 설명 |
+|---|---|---|
+| `RATE_LIMIT_ENABLED` | `true` | `false`면 `REDIS_URL`이 있어도 제한 끔 |
+| `RATE_LIMIT_REQUESTS` | `10` | 윈도우당 허용 요청 수 |
+| `RATE_LIMIT_WINDOW_SECONDS` | `60` | 윈도우 길이 |
 
 ## Adding a Style
 
@@ -120,3 +150,5 @@ Gemini 호출과 `APIError` → `TranslationEngineError` 변환은 `_generate()`
   따라서 `dependency_overrides`가 통하지 않고 `monkeypatch`가 필요합니다.
 - 캐시도 같은 방식입니다 — `conftest.py`의 `FakeCache`가 `client` fixture에 주입되며,
   `fake_cache` fixture로 저장된 내용을 들여다볼 수 있습니다. 테스트는 Redis 없이 돕니다.
+- rate limiter도 마찬가지로 `FakeRateLimiter`가 `client` / `make_client`에 주입됩니다. 기본은
+  무제한(`limit=None`)이라 다른 테스트에 영향이 없고, 429를 검증할 때만 `fake_rate_limiter.limit`을 정하세요.

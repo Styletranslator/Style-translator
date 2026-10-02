@@ -8,7 +8,7 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from api.routes import get_translate_service
+from api.routes import get_rate_limiter, get_translate_service
 from main import app
 from services.translate import TranslateService
 
@@ -77,6 +77,25 @@ class FakeCache:
         self.store[key] = value
 
 
+class FakeRateLimiter:
+    """RateLimiter 대역. 실제 Redis 없이 429 흐름을 검증합니다.
+
+    limit이 None이면 무제한이라 rate limiting과 무관한 테스트에 영향을 주지 않습니다.
+    제한을 걸어보려면 테스트에서 fake_rate_limiter.limit을 정하세요.
+    """
+
+    def __init__(self, limit: int | None = None, retry_after: int = 42):
+        self.limit = limit
+        self.retry_after = retry_after
+        self.hits: list[str] = []
+
+    def hit(self, client_id: str) -> int | None:
+        self.hits.append(client_id)
+        if self.limit is not None and self.hits.count(client_id) > self.limit:
+            return self.retry_after
+        return None
+
+
 @pytest.fixture
 def fake_client():
     return FakeGeminiClient()
@@ -88,11 +107,17 @@ def fake_cache():
 
 
 @pytest.fixture
-def client(fake_client, fake_cache):
-    """FakeGeminiClient와 FakeCache가 주입된 TestClient."""
+def fake_rate_limiter():
+    return FakeRateLimiter()
+
+
+@pytest.fixture
+def client(fake_client, fake_cache, fake_rate_limiter):
+    """FakeGeminiClient, FakeCache, FakeRateLimiter가 주입된 TestClient."""
     app.dependency_overrides[get_translate_service] = lambda: TranslateService(
         fake_client, fake_cache
     )
+    app.dependency_overrides[get_rate_limiter] = lambda: fake_rate_limiter
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
@@ -114,6 +139,7 @@ def make_client():
         app.dependency_overrides[get_translate_service] = lambda: TranslateService(
             fake, FakeCache()
         )
+        app.dependency_overrides[get_rate_limiter] = lambda: FakeRateLimiter()
         return TestClient(app, raise_server_exceptions=raise_server_exceptions), fake
 
     yield _make

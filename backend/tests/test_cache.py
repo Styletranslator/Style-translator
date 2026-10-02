@@ -8,6 +8,7 @@ import pytest
 from google.genai import errors as genai_errors
 
 from clients.cache import KEY_PREFIX, NullCache, RedisCache, build_cache, build_cache_key
+from clients.redis_client import create_redis_client
 from conftest import DEFAULT_CANDIDATES, FakeGeminiClient, error_code, success_data
 from core.config import settings
 from services.translate import TranslateService
@@ -261,14 +262,14 @@ def test_translate_still_works_when_redis_is_down(fake_client):
 def test_build_cache_returns_null_cache_without_redis_url(monkeypatch):
     monkeypatch.setattr(settings, "REDIS_URL", "")
 
-    assert isinstance(build_cache(), NullCache)
+    assert isinstance(build_cache(create_redis_client()), NullCache)
 
 
 def test_build_cache_returns_null_cache_when_disabled(monkeypatch):
     monkeypatch.setattr(settings, "CACHE_ENABLED", False)
     monkeypatch.setattr(settings, "REDIS_URL", "redis://localhost:6379/0")
 
-    assert isinstance(build_cache(), NullCache)
+    assert isinstance(build_cache(create_redis_client()), NullCache)
 
 
 def test_build_cache_returns_redis_cache_when_configured(monkeypatch):
@@ -276,4 +277,4 @@ def test_build_cache_returns_redis_cache_when_configured(monkeypatch):
     monkeypatch.setattr(settings, "REDIS_URL", "redis://localhost:6379/0")
 
     # from_url()은 지연 연결이라 Redis가 떠 있지 않아도 이 호출은 성공해야 합니다.
-    assert isinstance(build_cache(), RedisCache)
+    assert isinstance(build_cache(create_redis_client()), RedisCache)

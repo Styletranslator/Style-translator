@@ -6,6 +6,8 @@ class AppError(Exception):
 
     def __init__(self, message: str):
         self.message = message
+        # 응답에 함께 실을 HTTP 헤더. 대부분의 예외는 비어 있습니다.
+        self.headers: dict[str, str] = {}
         super().__init__(message)
 
 
@@ -39,3 +41,8 @@ class TranslationEngineError(AppError):
 class RateLimitExceededError(AppError):
     status_code = 429
     code = "RATE_LIMIT_EXCEEDED"
+
+    def __init__(self, message: str, retry_after: int):
+        super().__init__(message)
+        self.retry_after = retry_after
+        self.headers = {"Retry-After": str(retry_after)}

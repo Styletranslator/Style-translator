@@ -9,6 +9,7 @@ import json
 import logging
 from typing import Any, Protocol
 
+from clients.redis_client import redis_client
 from core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -90,26 +91,19 @@ class RedisCache:
             logger.warning("캐시 저장 실패 - 무시합니다", exc_info=True)
 
 
-def build_cache() -> TranslationCache:
-    """설정에 맞는 캐시를 만듭니다. 쓸 수 없는 상황이면 NullCache로 조용히 내려갑니다."""
+def build_cache(client) -> TranslationCache:
+    """설정에 맞는 캐시를 만듭니다. 쓸 수 없는 상황이면 NullCache로 조용히 내려갑니다.
+
+    client는 clients/redis_client.py가 만든 공용 Redis 클라이언트 (없으면 None).
+    """
     if not settings.CACHE_ENABLED:
         logger.info("번역 캐시 비활성화됨 (CACHE_ENABLED=false)")
         return NullCache()
-    if not settings.REDIS_URL:
-        logger.info("REDIS_URL이 없어 번역 캐시를 비활성화합니다")
+    if client is None:
+        logger.info("Redis를 쓸 수 없어 번역 캐시를 비활성화합니다 (REDIS_URL 확인)")
         return NullCache()
-
-    try:
-        import redis
-    except ImportError:
-        logger.warning("redis 패키지가 설치되지 않아 번역 캐시를 비활성화합니다")
-        return NullCache()
-
-    # from_url()은 지연 연결이라 여기서 네트워크를 타지 않습니다.
-    # 따라서 Redis가 떠 있지 않아도 import와 앱 기동은 성공합니다.
-    client = redis.Redis.from_url(settings.REDIS_URL, decode_responses=True)
     return RedisCache(client, settings.CACHE_TTL_SECONDS)
 
 
 # clients/gemini.py의 gemini_client와 같은 모듈 싱글톤 패턴.
-translation_cache = build_cache()
+translation_cache = build_cache(redis_client)
