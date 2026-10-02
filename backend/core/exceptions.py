@@ -26,6 +26,13 @@ class EmptyTextError(AppError):
     code = "EMPTY_TEXT"
 
 
+class TranslateError(AppError):
+    """서비스에서 두루 쓰는 요청 오류. 구체적인 사유는 raise할 때 message로 넘깁니다."""
+
+    status_code = 400
+    code = "TRANSLATE_ERROR"
+
+
 class TranslationEngineError(AppError):
     status_code = 502
     code = "TRANSLATION_ENGINE_ERROR"

@@ -28,7 +28,7 @@ KEY_PREFIX = "translate:v2"
 def build_cache_key(text: str, target_lang: str, style: str) -> str:
     """세 값이 모두 같을 때만 같은 key가 나오도록 만듭니다.
 
-    원문이 최대 2000자라 그대로 key에 쓰지 않고 sha256으로 고정 길이를 만듭니다.
+    원문이 최대 1000자(/translate, SHORT_LIMIT)라 그대로 key에 쓰지 않고 sha256으로 고정 길이를 만듭니다.
     구분자 없이 이어붙이면 ("ab", "c")와 ("a", "bc")가 같은 key가 되므로 JSON 배열로 직렬화합니다.
     """
     raw = json.dumps([text, target_lang, style], ensure_ascii=False)

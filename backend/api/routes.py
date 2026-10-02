@@ -5,7 +5,12 @@ from clients.gemini import gemini_client
 from clients.rate_limiter import RateLimiter, rate_limiter
 from core.envelope import SuccessResponse
 from core.exceptions import RateLimitExceededError
-from models.schemas import HealthData, TranslateRequest, TranslateResponse
+from models.schemas import (
+    HealthData,
+    LongTranslateResponse,
+    TranslateRequest,
+    TranslateResponse,
+)
 from services.translate import TranslateService
 
 router = APIRouter()
@@ -51,4 +56,11 @@ def list_styles(service: TranslateService = Depends(get_translate_service)):
 def translate(req: TranslateRequest, service: TranslateService = Depends(get_translate_service)):
     candidates = service.translate(req.text, req.target_lang, req.style)
     data = TranslateResponse(candidates=candidates, style=req.style)
+    return SuccessResponse(data=data)
+
+
+@router.post("/translate/long", response_model=SuccessResponse[LongTranslateResponse])
+def translate_long(req: TranslateRequest, service: TranslateService = Depends(get_translate_service)):
+    translation = service.translate_long(req.text, req.target_lang, req.style)
+    data = LongTranslateResponse(translation=translation, style=req.style)
     return SuccessResponse(data=data)

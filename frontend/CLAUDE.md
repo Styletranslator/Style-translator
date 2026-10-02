@@ -36,6 +36,8 @@ const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000'
 백엔드 CORS는 `backend/core/config.py`의 `ALLOWED_ORIGINS`에 `http://localhost:5173`만 등록돼 있습니다.
 
 요청 바디는 snake_case로 변환해서 보냅니다 — `{text, target_lang, style}`.
+`fetchTranslation()`은 `text.length > SHORT_LIMIT`(1,000, 백엔드와 동일)면 `/translate/long`으로 보내고,
+장문 응답 `{translation}`을 `{candidates: [translation]}`으로 맞춰 반환합니다.
 
 **응답 envelope:** 백엔드는 모든 응답을 `{success, data}` / `{success, error: {code, message}}`로
 감싸 보냅니다. `client.js`의 `unwrap()`이 껍데기를 벗겨내므로 **이 파일 밖에서는 응답 형식을
