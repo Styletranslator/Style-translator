@@ -38,6 +38,10 @@ class TranslationEngineError(AppError):
     code = "TRANSLATION_ENGINE_ERROR"
 
 
+class TruncatedOutputError(TranslationEngineError):
+    """출력이 max_output_tokens에 걸려 잘림. 장문은 청크를 쪼개 재시도하고, 단문은 그대로 502."""
+
+
 class RateLimitExceededError(AppError):
     status_code = 429
     code = "RATE_LIMIT_EXCEEDED"
