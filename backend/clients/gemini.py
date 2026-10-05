@@ -4,7 +4,7 @@ from google import genai
 from google.genai import types as genai_types
 
 from core.config import settings
-from core.exceptions import TruncatedOutputError
+from core.exceptions import TranslationEngineError
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ class GeminiClient:
             finish.name if finish else None,
         )
         if truncated:
-            raise TruncatedOutputError("번역 결과가 너무 길어 잘렸습니다. 글을 나눠서 시도해주세요.")
+            raise TranslationEngineError("번역 결과가 너무 길어 잘렸습니다. 글을 나눠서 시도해주세요.")
         return response.text or ""
 
 
