@@ -43,18 +43,18 @@ class TranslationCache(Protocol):
     캐시가 죽었을 때 번역이 느려질 수는 있어도 실패해서는 안 됩니다.
     """
 
-    def get(self, key: str) -> Any | None: ...
+    async def get(self, key: str) -> Any | None: ...
 
-    def set(self, key: str, value: Any) -> None: ...
+    async def set(self, key: str, value: Any) -> None: ...
 
 
 class NullCache:
     """캐시를 쓰지 않는 상태. 항상 miss이므로 매번 Gemini를 호출합니다."""
 
-    def get(self, key: str) -> Any | None:
+    async def get(self, key: str) -> Any | None:
         return None
 
-    def set(self, key: str, value: Any) -> None:
+    async def set(self, key: str, value: Any) -> None:
         return None
 
 
@@ -69,9 +69,9 @@ class RedisCache:
         self._client = client
         self._ttl = ttl_seconds
 
-    def get(self, key: str) -> Any | None:
+    async def get(self, key: str) -> Any | None:
         try:
-            raw = self._client.get(key)
+            raw = await self._client.get(key)
         except Exception:
             # 연결 실패, 타임아웃 등 원인을 가리지 않고 삼킵니다 (위 프로토콜 주석 참고).
             logger.warning("캐시 조회 실패 - 캐시 없이 진행합니다", exc_info=True)
@@ -84,9 +84,9 @@ class RedisCache:
             logger.warning("캐시 값 형식이 올바르지 않아 무시합니다: %s", key)
             return None
 
-    def set(self, key: str, value: Any) -> None:
+    async def set(self, key: str, value: Any) -> None:
         try:
-            self._client.set(key, json.dumps(value, ensure_ascii=False), ex=self._ttl)
+            await self._client.set(key, json.dumps(value, ensure_ascii=False), ex=self._ttl)
         except Exception:
             logger.warning("캐시 저장 실패 - 무시합니다", exc_info=True)
 

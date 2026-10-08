@@ -1,6 +1,10 @@
 """테스트 공용 fixture.
 
 실제 Gemini API는 호출하지 않습니다. FakeGeminiClient를 DI로 주입합니다.
+
+클라이언트와 서비스가 async라 대역도 async입니다. 엔드포인트 테스트는 TestClient가 이벤트 루프를
+대신 돌려주므로 평범한 def로 쓰고, 서비스나 클라이언트를 직접 await하는 테스트만
+@pytest.mark.anyio를 붙인 async def로 씁니다 (anyio는 FastAPI 의존성으로 함께 설치됨).
 """
 
 import json
@@ -53,7 +57,7 @@ class FakeGeminiClient:
     def is_configured(self) -> bool:
         return self._configured
 
-    def generate(self, contents: str, system_instruction: str) -> str:
+    async def generate(self, contents: str, system_instruction: str) -> str:
         self.calls.append({"contents": contents, "system_instruction": system_instruction})
         return self.reply
 
@@ -69,11 +73,11 @@ class FakeCache:
         self.store: dict = {}
         self.keys_requested: list = []
 
-    def get(self, key: str):
+    async def get(self, key: str):
         self.keys_requested.append(key)
         return self.store.get(key)
 
-    def set(self, key: str, value) -> None:
+    async def set(self, key: str, value) -> None:
         self.store[key] = value
 
 
@@ -89,7 +93,7 @@ class FakeRateLimiter:
         self.retry_after = retry_after
         self.hits: list[str] = []
 
-    def hit(self, client_id: str) -> int | None:
+    async def hit(self, client_id: str) -> int | None:
         self.hits.append(client_id)
         if self.limit is not None and self.hits.count(client_id) > self.limit:
             return self.retry_after

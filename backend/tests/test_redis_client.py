@@ -16,7 +16,7 @@ def test_no_client_without_redis_url(monkeypatch):
 
 
 def test_client_has_timeouts(monkeypatch):
-    """타임아웃이 없으면 Redis가 응답하지 않을 때 요청 스레드가 무한정 묶입니다.
+    """타임아웃이 없으면 Redis가 응답하지 않을 때 /translate 요청이 무한정 기다립니다.
 
     redis-py 기본값은 무한 대기(None)라 직접 설정하지 않으면 이 테스트가 실패합니다.
     """

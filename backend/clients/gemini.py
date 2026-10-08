@@ -12,8 +12,10 @@ class GeminiClient:
     def is_configured(self) -> bool:
         return self._client is not None
 
-    def generate(self, contents: str, system_instruction: str) -> str:
-        response = self._client.models.generate_content(
+    async def generate(self, contents: str, system_instruction: str) -> str:
+        # 비동기 API(client.aio)를 씁니다. 동기 API를 async 라우트에서 부르면 응답을 기다리는
+        # 수 초 동안 이벤트 루프가 멈춰 다른 요청도 전부 멈춥니다.
+        response = await self._client.aio.models.generate_content(
             model=settings.MODEL_NAME,
             contents=contents,
             config=genai_types.GenerateContentConfig(
