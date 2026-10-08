@@ -10,3 +10,6 @@ frontend/dist/
 # Claude Code 로컬 전용 파일 (.claude/agents/는 팀 공유 대상이라 커밋함)
 .claude/scheduled_tasks.lock
 .claude/settings.local.json
+
+# scripts csv 로컬 전용 파일
+backend/scripts/*.csv
