@@ -32,9 +32,9 @@ RESULTS = HERE / "limit_results.csv"     # 실행마다 덮어씀 — 남길 결
 TARGET = 1000                                     # 확인할 SHORT_LIMIT 후보
 SAFE_RATIO = 0.8                                  # 출력이 한도의 이 비율을 넘으면 '여유 부족'
 MAX_OUTPUT = 4096                                 # 운영 max_output_tokens (clients/gemini.py)
-THINKING = None                                   # None = 운영과 동일. 예) types.ThinkingConfig(thinking_level=types.ThinkingLevel.LOW)
+THINKING = types.ThinkingConfig(thinking_level=types.ThinkingLevel.LOW)  # 확인하고자 하는 thinking 설정
 COMBOS = [("formal", "zh"), ("general", "zh"), ("sns", "zh")]  # 지난 측정 상위 3개 (--find-worst면 무시)
-REPS = 3                                          # 각 조합 반복 횟수
+REPS = 2                                          # 각 조합 반복 횟수
 TOP = 3                                           # --find-worst에서 고를 상위 조합 수
 LANGS = ["en", "ja", "zh"]                        # 1단계 대상 언어 (프론트 LANGUAGES 중 ko 제외)
 RATIO_CHARS = 314                                 # 1단계 입력 길이 (샘플 첫 문단)

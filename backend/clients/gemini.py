@@ -27,6 +27,7 @@ class GeminiClient:
                 max_output_tokens=4096,
                 response_mime_type="application/json",
                 response_schema=list[str],
+                thinking_config=genai_types.ThinkingConfig(thinking_level=genai_types.ThinkingLevel.LOW),
             ),
         )
         # 운영 로그로 SHORT_LIMIT / CHUNK_SIZE를 조정합니다 (측정 스크립트는 쿼터를 따로 씀).
