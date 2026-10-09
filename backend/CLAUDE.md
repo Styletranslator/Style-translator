@@ -28,7 +28,7 @@ pytest                                    # 테스트 (pytest.ini: pythonpath=.,
 | `core/envelope.py` | `SuccessResponse[T]` — 성공 응답 공통 껍데기 |
 | `core/exceptions.py` | `AppError` 및 하위 예외 — FastAPI를 모르는 순수 도메인 예외 |
 | `core/error_handlers.py` | `AppError` / 검증 실패 / 미처리 예외 → HTTP 변환. `register_exception_handlers(app)` |
-| `models/schemas.py` | `TranslateRequest` (두 번역 엔드포인트 공용, text ≤ 10,000자) / `TranslateResponse` / `LongTranslateResponse` / `HealthData` |
+| `models/schemas.py` | `TranslateRequest` (두 번역 엔드포인트 공용, text ≤ 10,000자) / `TranslateResponse` / `LongTranslateResponse` / `HealthData` / `GlossaryTerm` (용어집 추출 스키마) |
 | `styles.py` | `STYLES` 딕셔너리 — 스타일 단일 정의처 |
 
 ## Async
@@ -42,7 +42,9 @@ Redis와 Gemini를 부르는 경로는 모두 `async`입니다 — `/translate`,
   이벤트 루프 전체가 멈춰 모든 요청이 함께 멈춥니다. 스레드풀에서 돌던 동기 라우트 시절보다 피해가 큽니다.
 - 새 Redis/Gemini 호출을 추가할 때는 반드시 `await`하는 비동기 API를 쓰세요.
 - `/health`, `/styles`는 I/O가 없어 동기 `def`로 둡니다 (FastAPI가 스레드풀에서 실행).
-- `translate_long()`은 청크를 여전히 순차로 번역합니다. 병렬화는 #23 범위입니다.
+- `translate_long()`은 청크를 `asyncio.gather`로 병렬 번역합니다 (아래 "Gemini 호출" 참고).
+  청크 하나라도 실패하면 나머지 청크 호출을 취소하고 원래 예외(→ 502)를 올립니다.
+  `asyncio.TaskGroup`은 예외를 `ExceptionGroup`으로 감싸 에러 핸들러가 500으로 처리하므로 쓰지 않습니다.
 
 ## Endpoints
 
@@ -77,7 +79,24 @@ structured output(`response_mime_type="application/json"`, `response_schema=list
 
 `translate()`는 호출 1번에 후보 `CANDIDATE_COUNT`(3)개. 한글은 1,000자를 넘으면 후보 3개가 4096 토큰을 넘겨 잘릴 수 있어 `SHORT_LIMIT`로 막습니다.
 `translate_long()`은 `chunk_text()`가 문단 → 문장 → 글자 순으로 `CHUNK_SIZE`(2,000자) 이하 청크로 나누고,
-청크마다 순차 호출해 1개씩 받아 원문의 구분 공백을 끼워 이어붙입니다 (`"".join(chunks) == text` 불변식).
+청크를 병렬 호출해 1개씩 받아 원문의 구분 공백을 끼워 이어붙입니다 (`"".join(chunks) == text` 불변식).
+
+청크를 따로 번역하면 청크 간 용어와 흐름이 어긋나므로 (#17에서 RAG 대신 택한 방식):
+
+- **용어집 선추출** — 청크가 2개 이상이면 번역 전에 전체 원문으로 `_extract_glossary()`를 1번 호출해
+  고유명사·핵심 용어의 번역 규칙(`list[GlossaryTerm]`, 최대 `GLOSSARY_MAX_TERMS`개)을 받고, 모든 청크 시스템 프롬프트에 넣습니다.
+  청크가 1개면 생략합니다. **청크 2개 이상이면 Gemini 호출이 1회 늘고, 추출이 끝나야 번역이 시작돼 응답이 그만큼 늦어집니다.**
+- **앞 청크 문맥** — 각 청크 시스템 프롬프트에 앞 청크 원문의 마지막 `CONTEXT_TAIL_CHARS`(300)자를 "번역하지 말 것"으로 첨부합니다.
+  contents에는 번역할 청크 본문만 둡니다 — 참고 문맥이 사용자 입력에 섞이면 함께 번역될 위험이 큽니다.
+- **추출은 fail-open** — API 에러, 출력 잘림, JSON/형식 검증 실패, timeout(`GLOSSARY_TIMEOUT_SECONDS`) 모두
+  warning 로그(`glossary extraction failed`)만 남기고 용어집 없이 번역합니다. 로그로 품질 저하 빈도를 확인합니다.
+  모든 청크가 추출을 기다리므로 timeout은 번역 호출보다 짧게 잡습니다.
+- `GeminiClient.generate()`의 `response_schema` / `max_output_tokens` 키워드는 추출 호출만 넘깁니다 (기본값은 번역용).
+
+| 환경변수 | 기본값 | 설명 |
+|---|---|---|
+| `GLOSSARY_TIMEOUT_SECONDS` | `8` | 용어집 추출 timeout. 넘기면 용어집 없이 번역 |
+
 Gemini 호출과 `APIError` → `TranslationEngineError` 변환은 `_generate()` 한곳에서 합니다.
 `GEMINI_API_KEY`가 없으면 `_client=None`이 되고 `is_configured`가 False (import 자체는 성공하므로 CI에서 키 없이 테스트 가능).
 
@@ -166,6 +185,9 @@ Gemini 호출과 `APIError` → `TranslationEngineError` 변환은 `_generate()`
 - rate limiter도 마찬가지로 `FakeRateLimiter`가 `client` / `make_client`에 주입됩니다. 기본은
   무제한(`limit=None`)이라 다른 테스트에 영향이 없고, 429를 검증할 때만 `fake_rate_limiter.limit`을 정하세요.
 - 대역도 async입니다. `fake.generate`를 바꿔 끼울 때는 `async def`로 정의하세요.
+  장문 2청크 이상을 다루면 용어집 추출 호출도 오므로 `**options`를 받으세요.
+- `FakeGeminiClient`는 용어집 추출 호출(`response_schema`를 넘김)을 `calls`가 아닌 `glossary_calls`에 기록하고
+  `glossary_reply`를 돌려줍니다 (예외를 넣으면 raise). 번역 호출만 세는 테스트가 추출 호출에 영향받지 않습니다.
   `RedisCache` / `RedisRateLimiter` 테스트의 `FakeRedis`도 `redis.asyncio`처럼 `get/set/execute`만 async입니다.
 - 엔드포인트 테스트는 `TestClient`가 이벤트 루프를 대신 돌리므로 평범한 `def`로 씁니다.
   서비스나 클라이언트를 직접 `await`하는 테스트만 `@pytest.mark.anyio` + `async def`로 씁니다

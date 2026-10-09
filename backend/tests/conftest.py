@@ -18,6 +18,7 @@ from services.translate import TranslateService
 
 DEFAULT_CANDIDATES = ["번역 후보 1", "번역 후보 2", "번역 후보 3"]
 DEFAULT_REPLY = json.dumps(DEFAULT_CANDIDATES, ensure_ascii=False)
+DEFAULT_GLOSSARY_REPLY = json.dumps([{"source": "철수", "target": "Cheolsu"}], ensure_ascii=False)
 
 
 def error_message(response) -> str:
@@ -46,19 +47,38 @@ def success_data(response):
 
 
 class FakeGeminiClient:
-    """GeminiClient 대역. 호출 인자를 기록해 프롬프트 조립을 검증할 수 있습니다."""
+    """GeminiClient 대역. 호출 인자를 기록해 프롬프트 조립을 검증할 수 있습니다.
 
-    def __init__(self, *, configured: bool = True, reply: str = DEFAULT_REPLY):
+    장문 번역의 용어집 추출 호출(response_schema를 넘기는 호출)은 calls가 아니라
+    glossary_calls에 기록하고 glossary_reply를 돌려줍니다. 번역 호출만 세는 기존 테스트가
+    추출 호출 때문에 깨지지 않도록 나눴습니다. glossary_reply에 예외를 넣으면 raise합니다.
+    """
+
+    def __init__(
+        self,
+        *,
+        configured: bool = True,
+        reply: str = DEFAULT_REPLY,
+        glossary_reply: str | Exception = DEFAULT_GLOSSARY_REPLY,
+    ):
         self._configured = configured
         self.reply = reply
+        self.glossary_reply = glossary_reply
         self.calls: list[dict] = []
+        self.glossary_calls: list[dict] = []
 
     @property
     def is_configured(self) -> bool:
         return self._configured
 
-    async def generate(self, contents: str, system_instruction: str) -> str:
-        self.calls.append({"contents": contents, "system_instruction": system_instruction})
+    async def generate(self, contents: str, system_instruction: str, **options) -> str:
+        call = {"contents": contents, "system_instruction": system_instruction}
+        if "response_schema" in options:
+            self.glossary_calls.append(call)
+            if isinstance(self.glossary_reply, Exception):
+                raise self.glossary_reply
+            return self.glossary_reply
+        self.calls.append(call)
         return self.reply
 
 

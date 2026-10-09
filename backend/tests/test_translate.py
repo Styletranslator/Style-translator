@@ -6,6 +6,7 @@
 
 import asyncio
 import json
+import logging
 
 import httpx
 import pytest
@@ -13,9 +14,11 @@ from google.genai import errors as genai_errors
 
 from api.routes import get_rate_limiter, get_translate_service
 from conftest import DEFAULT_CANDIDATES, DEFAULT_REPLY, error_code, error_message, success_data
+from core.config import settings
+from core.exceptions import TranslationEngineError
 from main import app
 from services.chunking import chunk_text
-from services.translate import SHORT_LIMIT, TranslateService
+from services.translate import CONTEXT_TAIL_CHARS, SHORT_LIMIT, TranslateService
 from styles import STYLES
 
 
@@ -237,6 +240,146 @@ def test_translate_long_returns_502_when_gemini_fails(make_client):
 
     assert res.status_code == 502
     assert error_code(res) == "TRANSLATION_ENGINE_ERROR"
+
+
+# ---------- POST /translate/long — 용어집 선추출 / 앞 청크 문맥 (#23) ----------
+
+TWO_CHUNKS = "가" * 1500 + "\n\n" + "나" * 1500
+
+
+def test_translate_long_single_chunk_skips_glossary(make_client):
+    test_client, fake = make_client(reply=ONE_REPLY)
+
+    res = test_client.post("/translate/long", json=payload())
+
+    assert res.status_code == 200
+    assert fake.glossary_calls == []
+    assert "용어집" not in fake.calls[0]["system_instruction"]
+    assert "참고용 앞 문맥" not in fake.calls[0]["system_instruction"]
+
+
+def test_translate_long_extracts_glossary_once_and_puts_it_in_every_chunk(make_client):
+    test_client, fake = make_client(reply=ONE_REPLY)
+
+    res = test_client.post("/translate/long", json=payload(text=TWO_CHUNKS))
+
+    assert res.status_code == 200
+    assert [c["contents"] for c in fake.glossary_calls] == [TWO_CHUNKS]
+    assert len(fake.calls) == 2
+    assert all("철수 → Cheolsu" in c["system_instruction"] for c in fake.calls)
+
+
+def test_translate_long_passes_previous_chunk_tail_as_context(make_client):
+    test_client, fake = make_client(reply=ONE_REPLY)
+    first = "가" * 1500 + "앞 청크의 마지막 문장."
+    text = first + "\n\n" + "나" * 1500
+
+    res = test_client.post("/translate/long", json=payload(text=text))
+
+    assert success_data(res)["translation"] == "번역\n\n번역"
+    head, tail = fake.calls
+    assert "참고용 앞 문맥" not in head["system_instruction"]
+    assert first[-CONTEXT_TAIL_CHARS:] in tail["system_instruction"]
+    assert first[-CONTEXT_TAIL_CHARS - 1 :] not in tail["system_instruction"]
+    # 참고 문맥은 시스템 지시문에만 — 번역 대상(contents)에는 섞이지 않아야 합니다.
+    assert tail["contents"] == "나" * 1500
+
+
+@pytest.mark.parametrize(
+    "glossary_reply",
+    [
+        genai_errors.APIError(503, {"error": {"message": "service unavailable"}}),
+        TranslationEngineError("잘림"),
+        "not json",
+        json.dumps({"source": "철수", "target": "Cheolsu"}),  # 배열이 아님
+        json.dumps([{"source": "철수"}]),  # target 누락
+        json.dumps([{"source": " ", "target": "Cheolsu"}]),  # 빈 용어
+    ],
+    ids=["api-error", "engine-error", "invalid-json", "not-list", "missing-field", "blank-term"],
+)
+def test_translate_long_fails_open_when_glossary_extraction_fails(make_client, caplog, glossary_reply):
+    test_client, fake = make_client(reply=ONE_REPLY, glossary_reply=glossary_reply)
+
+    with caplog.at_level(logging.WARNING, logger="services.translate"):
+        res = test_client.post("/translate/long", json=payload(text=TWO_CHUNKS))
+
+    assert success_data(res)["translation"] == "번역\n\n번역"
+    assert all("용어집" not in c["system_instruction"] for c in fake.calls)
+    assert "glossary extraction failed" in caplog.text
+
+
+def test_translate_long_fails_open_when_glossary_extraction_times_out(make_client, caplog, monkeypatch):
+    monkeypatch.setattr(settings, "GLOSSARY_TIMEOUT_SECONDS", 0.01)
+    test_client, fake = make_client(reply=ONE_REPLY)
+    original = fake.generate
+
+    async def slow_glossary(contents, system_instruction, **options):
+        if "response_schema" in options:
+            await asyncio.sleep(1)
+        return await original(contents, system_instruction, **options)
+
+    fake.generate = slow_glossary
+
+    with caplog.at_level(logging.WARNING, logger="services.translate"):
+        res = test_client.post("/translate/long", json=payload(text=TWO_CHUNKS))
+
+    assert success_data(res)["translation"] == "번역\n\n번역"
+    assert all("용어집" not in c["system_instruction"] for c in fake.calls)
+    assert "TimeoutError" in caplog.text
+
+
+def test_translate_long_translates_chunks_concurrently(make_client):
+    """청크 번역은 병렬이어야 합니다 — 가짜 Gemini는 모든 청크 호출이 도착해야 응답합니다.
+
+    순차 호출이면 첫 청크가 나머지를 기다리다 타임아웃으로 실패합니다.
+    """
+    test_client, fake = make_client(reply=ONE_REPLY)
+    text = "\n\n".join(c * 1500 for c in "가나다")
+    arrived = 0
+    all_arrived = asyncio.Event()
+
+    async def wait_for_every_chunk(contents, system_instruction, **options):
+        nonlocal arrived
+        if "response_schema" in options:
+            return fake.glossary_reply
+        arrived += 1
+        if arrived == 3:
+            all_arrived.set()
+        await asyncio.wait_for(all_arrived.wait(), timeout=2)
+        return ONE_REPLY
+
+    fake.generate = wait_for_every_chunk
+
+    res = test_client.post("/translate/long", json=payload(text=text))
+
+    assert success_data(res)["translation"] == "번역\n\n번역\n\n번역"
+
+
+def test_translate_long_cancels_other_chunks_when_one_fails(make_client):
+    """청크 하나가 실패하면 나머지 청크 호출은 취소되어야 합니다 — 결과가 502인데 쿼터만 쓰지 않도록."""
+    test_client, fake = make_client(reply=ONE_REPLY)
+    text = "\n\n".join(c * 1500 for c in "가나다")
+    cancelled = []
+
+    async def first_chunk_fails(contents, system_instruction, **options):
+        if "response_schema" in options:
+            return fake.glossary_reply
+        if contents.startswith("가"):
+            raise genai_errors.APIError(503, {"error": {"message": "service unavailable"}})
+        try:
+            await asyncio.sleep(5)
+        except asyncio.CancelledError:
+            cancelled.append(contents[0])
+            raise
+        return ONE_REPLY
+
+    fake.generate = first_chunk_fails
+
+    res = test_client.post("/translate/long", json=payload(text=text))
+
+    assert res.status_code == 502
+    assert error_code(res) == "TRANSLATION_ENGINE_ERROR"
+    assert sorted(cancelled) == ["나", "다"]
 
 
 def test_chunk_text_preserves_text_and_respects_limit():
