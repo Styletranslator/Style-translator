@@ -24,17 +24,20 @@ def get_rate_limiter() -> RateLimiter:
     return rate_limiter
 
 
-def enforce_rate_limit(request: Request, limiter: RateLimiter = Depends(get_rate_limiter)) -> None:
+async def enforce_rate_limit(request: Request, limiter: RateLimiter = Depends(get_rate_limiter)) -> None:
     # 주의: 프록시 뒤에 배포하면 모든 요청이 프록시 IP로 보여 한도를 함께 쓰게 됨.
     # 배포 환경이 정해지면 X-Forwarded-For(신뢰하는 프록시가 붙인 것만) 처리를 추가.
     client_id = request.client.host if request.client else "unknown"
-    retry_after = limiter.hit(client_id)
+    retry_after = await limiter.hit(client_id)
     if retry_after is not None:
         raise RateLimitExceededError(
             f"요청이 너무 많습니다. {retry_after}초 후 다시 시도해주세요.", retry_after
         )
 
 
+# /health와 /styles는 I/O가 없어 동기(def)로 둡니다 — FastAPI가 스레드풀에서 실행합니다.
+# Redis/Gemini를 부르는 라우트와 의존성은 async def이고, 그 안에서는 동기 블로킹 호출을
+# 하면 안 됩니다. 하나라도 있으면 이벤트 루프가 멈춰 모든 요청이 함께 멈춥니다.
 @router.get("/health", response_model=SuccessResponse[HealthData])
 def health_check():
     data = HealthData(status="ok", api_key_configured=gemini_client.is_configured)
@@ -53,14 +56,14 @@ def list_styles(service: TranslateService = Depends(get_translate_service)):
     response_model=SuccessResponse[TranslateResponse],
     dependencies=[Depends(enforce_rate_limit)],
 )
-def translate(req: TranslateRequest, service: TranslateService = Depends(get_translate_service)):
-    candidates = service.translate(req.text, req.target_lang, req.style)
+async def translate(req: TranslateRequest, service: TranslateService = Depends(get_translate_service)):
+    candidates = await service.translate(req.text, req.target_lang, req.style)
     data = TranslateResponse(candidates=candidates, style=req.style)
     return SuccessResponse(data=data)
 
 
 @router.post("/translate/long", response_model=SuccessResponse[LongTranslateResponse])
-def translate_long(req: TranslateRequest, service: TranslateService = Depends(get_translate_service)):
-    translation = service.translate_long(req.text, req.target_lang, req.style)
+async def translate_long(req: TranslateRequest, service: TranslateService = Depends(get_translate_service)):
+    translation = await service.translate_long(req.text, req.target_lang, req.style)
     data = LongTranslateResponse(translation=translation, style=req.style)
     return SuccessResponse(data=data)

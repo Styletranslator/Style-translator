@@ -4,6 +4,8 @@
 RedisRateLimiter 자체는 아래 FakeRedis/BrokenRedis를 주입해 검증합니다.
 """
 
+import pytest
+
 from clients.rate_limiter import (
     KEY_PREFIX,
     NullRateLimiter,
@@ -96,7 +98,10 @@ def test_health_and_styles_are_not_rate_limited(client, fake_rate_limiter):
 
 
 class FakeRedis:
-    """redis 클라이언트 대역. pipeline()의 INCR / EXPIRE만 흉내 냅니다."""
+    """redis.asyncio 클라이언트 대역. pipeline()의 INCR / EXPIRE만 흉내 냅니다.
+
+    redis.asyncio와 같이 pipeline()/incr()/expire()는 동기(명령을 쌓기만 함)이고 execute()만 async입니다.
+    """
 
     def __init__(self):
         self.counts: dict = {}
@@ -117,7 +122,7 @@ class FakePipeline:
     def expire(self, key, seconds):
         self._ops.append(("expire", key, seconds))
 
-    def execute(self):
+    async def execute(self):
         results = []
         for op, key, *args in self._ops:
             if op == "incr":
@@ -141,7 +146,7 @@ class BrokenRedis:
     def expire(self, key, seconds):
         pass
 
-    def execute(self):
+    async def execute(self):
         raise ConnectionError("redis 연결 실패")
 
 
@@ -161,67 +166,75 @@ def make_limiter(limit=3, window=60, now=1000.0, redis=None):
     return limiter, clock
 
 
-def test_redis_limiter_allows_up_to_limit_then_blocks():
+@pytest.mark.anyio
+async def test_redis_limiter_allows_up_to_limit_then_blocks():
     limiter, _ = make_limiter(limit=3)
 
-    assert [limiter.hit("1.2.3.4") for _ in range(3)] == [None, None, None]
-    assert limiter.hit("1.2.3.4") is not None
+    assert [await limiter.hit("1.2.3.4") for _ in range(3)] == [None, None, None]
+    assert await limiter.hit("1.2.3.4") is not None
 
 
-def test_redis_limiter_returns_seconds_until_window_ends():
+@pytest.mark.anyio
+async def test_redis_limiter_returns_seconds_until_window_ends():
     # 윈도우 60초, 현재 1000초 → 이번 윈도우는 960~1020초. 남은 시간 20초.
     limiter, _ = make_limiter(limit=0, window=60, now=1000.0)
 
-    assert limiter.hit("1.2.3.4") == 20
+    assert await limiter.hit("1.2.3.4") == 20
 
 
-def test_redis_limiter_retry_after_is_at_least_one_second():
+@pytest.mark.anyio
+async def test_redis_limiter_retry_after_is_at_least_one_second():
     """윈도우 끝 직전이어도 0초가 아니라 최소 1초를 돌려줘야 합니다 (Retry-After: 0은 무의미)."""
     limiter, _ = make_limiter(limit=0, window=60, now=1019.9)
 
-    assert limiter.hit("1.2.3.4") == 1
+    assert await limiter.hit("1.2.3.4") == 1
 
 
-def test_redis_limiter_resets_in_next_window():
+@pytest.mark.anyio
+async def test_redis_limiter_resets_in_next_window():
     limiter, clock = make_limiter(limit=1, now=1000.0)
-    limiter.hit("1.2.3.4")
-    assert limiter.hit("1.2.3.4") is not None
+    await limiter.hit("1.2.3.4")
+    assert await limiter.hit("1.2.3.4") is not None
 
     clock.now = 1020.0  # 다음 윈도우 시작
 
-    assert limiter.hit("1.2.3.4") is None
+    assert await limiter.hit("1.2.3.4") is None
 
 
-def test_redis_limiter_counts_each_client_separately():
+@pytest.mark.anyio
+async def test_redis_limiter_counts_each_client_separately():
     limiter, _ = make_limiter(limit=1)
-    limiter.hit("1.1.1.1")
+    await limiter.hit("1.1.1.1")
 
-    assert limiter.hit("2.2.2.2") is None
+    assert await limiter.hit("2.2.2.2") is None
 
 
-def test_redis_limiter_sets_expiry_so_keys_do_not_pile_up():
+@pytest.mark.anyio
+async def test_redis_limiter_sets_expiry_so_keys_do_not_pile_up():
     """윈도우마다 새 key를 쓰므로 만료가 없으면 Redis에 key가 계속 쌓입니다."""
     fake_redis = FakeRedis()
     limiter, _ = make_limiter(window=60, redis=fake_redis)
 
-    limiter.hit("1.2.3.4")
+    await limiter.hit("1.2.3.4")
 
     [(key, ttl)] = fake_redis.ttls.items()
     assert key.startswith(f"{KEY_PREFIX}:1.2.3.4:")
     assert ttl == 60
 
 
-def test_redis_failure_lets_request_through():
+@pytest.mark.anyio
+async def test_redis_failure_lets_request_through():
     """Redis가 죽어도 요청을 막으면 안 됩니다 (fail-open)."""
     limiter, _ = make_limiter(limit=0, redis=BrokenRedis())
 
-    assert limiter.hit("1.2.3.4") is None
+    assert await limiter.hit("1.2.3.4") is None
 
 
-def test_null_rate_limiter_never_blocks():
+@pytest.mark.anyio
+async def test_null_rate_limiter_never_blocks():
     limiter = NullRateLimiter()
 
-    assert all(limiter.hit("1.2.3.4") is None for _ in range(1000))
+    assert [await limiter.hit("1.2.3.4") for _ in range(1000)] == [None] * 1000
 
 
 # ---------- rate limiter 구성 ----------

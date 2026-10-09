@@ -4,14 +4,18 @@
 응답 형식이 바뀌면 그 헬퍼만 고치면 됩니다.
 """
 
+import asyncio
 import json
 
+import httpx
 import pytest
 from google.genai import errors as genai_errors
 
-from conftest import DEFAULT_CANDIDATES, error_code, error_message, success_data
+from api.routes import get_rate_limiter, get_translate_service
+from conftest import DEFAULT_CANDIDATES, DEFAULT_REPLY, error_code, error_message, success_data
+from main import app
 from services.chunking import chunk_text
-from services.translate import SHORT_LIMIT
+from services.translate import SHORT_LIMIT, TranslateService
 from styles import STYLES
 
 
@@ -108,7 +112,7 @@ def test_translate_returns_502_when_gemini_fails(make_client):
     """Gemini 장애는 서버 오류(500)가 아니라 업스트림 오류(502)로 나가야 함."""
     test_client, fake = make_client()
 
-    def boom(contents, system_instruction):
+    async def boom(contents, system_instruction):
         raise genai_errors.APIError(503, {"error": {"message": "service unavailable"}})
 
     fake.generate = boom
@@ -144,7 +148,7 @@ def test_translate_returns_500_with_generic_message_on_unexpected_error(make_cli
     """AppError가 아닌 예외는 전역 핸들러가 잡아 내부 정보 없이 500을 반환해야 함."""
     test_client, fake = make_client(raise_server_exceptions=False)
 
-    def boom(contents, system_instruction):
+    async def boom(contents, system_instruction):
         raise RuntimeError("내부 디버그 정보 - 절대 노출 금지")
 
     fake.generate = boom
@@ -224,7 +228,7 @@ def test_translate_long_rejects_text_over_max_length(client):
 def test_translate_long_returns_502_when_gemini_fails(make_client):
     test_client, fake = make_client()
 
-    def boom(contents, system_instruction):
+    async def boom(contents, system_instruction):
         raise genai_errors.APIError(503, {"error": {"message": "service unavailable"}})
 
     fake.generate = boom
@@ -241,3 +245,41 @@ def test_chunk_text_preserves_text_and_respects_limit():
 
     assert "".join(chunks) == text
     assert all(len(c) <= 2000 for c in chunks)
+
+
+# ---------- 동시 처리 (async I/O) ----------
+
+
+@pytest.mark.anyio
+async def test_requests_wait_for_gemini_concurrently(fake_client, fake_cache, fake_rate_limiter):
+    """Gemini 응답을 기다리는 동안 다른 요청도 처리되어야 합니다 — async 전환(#20)의 목적.
+
+    가짜 Gemini는 요청 n개가 모두 도착해야 응답합니다. 요청이 하나씩 처리되면 첫 요청이
+    나머지를 기다리다 타임아웃으로 실패합니다. TestClient는 요청을 하나씩 보내므로
+    httpx.AsyncClient로 n개를 동시에 보냅니다.
+    """
+    n = 5
+    arrived = 0
+    all_arrived = asyncio.Event()
+
+    async def wait_for_everyone(contents, system_instruction):
+        nonlocal arrived
+        arrived += 1
+        if arrived == n:
+            all_arrived.set()
+        await asyncio.wait_for(all_arrived.wait(), timeout=2)
+        return DEFAULT_REPLY
+
+    fake_client.generate = wait_for_everyone
+    app.dependency_overrides[get_translate_service] = lambda: TranslateService(fake_client, fake_cache)
+    app.dependency_overrides[get_rate_limiter] = lambda: fake_rate_limiter
+    try:
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+            responses = await asyncio.gather(
+                *(ac.post("/translate", json=payload(text=f"문장 {i}")) for i in range(n))
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert [r.status_code for r in responses] == [200] * n

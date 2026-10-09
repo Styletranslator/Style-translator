@@ -16,12 +16,12 @@ pytest                                    # 테스트 (pytest.ini: pythonpath=.,
 
 | 파일 | 역할 |
 |---|---|
-| `main.py` | FastAPI 인스턴스, CORS 미들웨어, 라우터 등록 |
+| `main.py` | FastAPI 인스턴스, CORS 미들웨어, 라우터 등록, 종료 시 Redis 연결 풀 닫기 (`lifespan`) |
 | `api/routes.py` | 엔드포인트 4개 + `get_translate_service()` / `get_rate_limiter()` DI 팩토리 + `enforce_rate_limit` |
 | `services/translate.py` | `TranslateService` — 검증, 프롬프트 조립, 클라이언트 호출 |
 | `services/chunking.py` | `chunk_text()` — 장문을 문단 → 문장 → 글자 순으로 `CHUNK_SIZE` 이하 청크로 분할 (순수 함수) |
-| `clients/gemini.py` | `GeminiClient` — Gemini SDK 래퍼. 모듈 로드 시 싱글톤 `gemini_client` 생성 |
-| `clients/redis_client.py` | 공용 Redis 클라이언트 (타임아웃 설정 포함). 싱글톤 `redis_client` — 캐시와 rate limiter가 공유 |
+| `clients/gemini.py` | `GeminiClient` — Gemini SDK 래퍼 (비동기 API `client.aio`). 모듈 로드 시 싱글톤 `gemini_client` 생성 |
+| `clients/redis_client.py` | 공용 비동기 Redis 클라이언트 (`redis.asyncio`, 타임아웃 설정 포함). 싱글톤 `redis_client` — 캐시와 rate limiter가 공유 |
 | `clients/cache.py` | `TranslationCache` 프로토콜 + `RedisCache` / `NullCache`. 싱글톤 `translation_cache` |
 | `clients/rate_limiter.py` | `RateLimiter` 프로토콜 + `RedisRateLimiter` / `NullRateLimiter`. 싱글톤 `rate_limiter` |
 | `core/config.py` | `Settings` — 환경변수, 모델명, CORS 허용 오리진, 캐시 / rate limit 설정 |
@@ -30,6 +30,19 @@ pytest                                    # 테스트 (pytest.ini: pythonpath=.,
 | `core/error_handlers.py` | `AppError` / 검증 실패 / 미처리 예외 → HTTP 변환. `register_exception_handlers(app)` |
 | `models/schemas.py` | `TranslateRequest` (두 번역 엔드포인트 공용, text ≤ 10,000자) / `TranslateResponse` / `LongTranslateResponse` / `HealthData` |
 | `styles.py` | `STYLES` 딕셔너리 — 스타일 단일 정의처 |
+
+## Async
+
+Redis와 Gemini를 부르는 경로는 모두 `async`입니다 — `/translate`, `/translate/long` 라우트,
+`enforce_rate_limit`, `TranslateService.translate()` / `translate_long()`, 캐시 `get/set`, rate limiter `hit()`,
+`GeminiClient.generate()`. I/O를 기다리는 동안 이벤트 루프가 다른 요청을 처리합니다.
+
+- **async 함수 안에서 동기 블로킹 호출을 하지 마세요.** 동기 Redis 클라이언트, Gemini 동기 API
+  (`client.models...`, `client.aio` 없이), `time.sleep`, `requests` 등이 하나라도 있으면 그동안
+  이벤트 루프 전체가 멈춰 모든 요청이 함께 멈춥니다. 스레드풀에서 돌던 동기 라우트 시절보다 피해가 큽니다.
+- 새 Redis/Gemini 호출을 추가할 때는 반드시 `await`하는 비동기 API를 쓰세요.
+- `/health`, `/styles`는 I/O가 없어 동기 `def`로 둡니다 (FastAPI가 스레드풀에서 실행).
+- `translate_long()`은 청크를 여전히 순차로 번역합니다. 병렬화는 #23 범위입니다.
 
 ## Endpoints
 
@@ -58,7 +71,7 @@ pytest                                    # 테스트 (pytest.ini: pythonpath=.,
 
 ## Gemini 호출
 
-`clients/gemini.py` — 모델 `gemini-3.5-flash`, temperature 0.3, max_output_tokens 4096.
+`clients/gemini.py` — 모델 `gemini-3.5-flash`, temperature 0.3, max_output_tokens 4096. 비동기 API(`client.aio.models.generate_content`)로 호출합니다.
 structured output(`response_mime_type="application/json"`, `response_schema=list[str]`)으로 JSON 문자열 배열을 받고,
 `TranslateService._parse_candidates()`가 요청한 후보 개수인지 검증합니다.
 
@@ -87,8 +100,8 @@ Gemini 호출과 `APIError` → `TranslationEngineError` 변환은 `_generate()`
 - **캐시 실패는 절대 요청을 죽이지 않습니다.** `RedisCache`의 `get()`/`set()`은 모든 예외를 삼키고
   로그만 남깁니다 — Redis가 죽으면 느려질 뿐 번역은 정상 동작해야 합니다.
 - "느려질 뿐"이 성립하는 건 `clients/redis_client.py`의 타임아웃(`REDIS_TIMEOUT_SECONDS`, 0.5초) 덕분입니다.
-  redis-py 기본값은 무한 대기라, 타임아웃 없이 Redis가 응답하지 않으면 요청 스레드가 전부 묶여
-  `/health`까지 멈춥니다. **Redis 클라이언트를 새로 만들지 말고 공용 `redis_client`를 쓰세요.**
+  redis-py 기본값은 무한 대기라, 타임아웃 없이 Redis가 응답하지 않으면 모든 `/translate` 요청이
+  끝나지 않습니다. **Redis 클라이언트를 새로 만들지 말고 공용 `redis_client`를 쓰세요.**
 - 검증 실패와 Gemini 호출 실패는 캐싱하지 않습니다 (실패를 캐싱하면 TTL 동안 계속 실패).
 
 | 환경변수 | 기본값 | 설명 |
@@ -152,3 +165,10 @@ Gemini 호출과 `APIError` → `TranslationEngineError` 변환은 `_generate()`
   `fake_cache` fixture로 저장된 내용을 들여다볼 수 있습니다. 테스트는 Redis 없이 돕니다.
 - rate limiter도 마찬가지로 `FakeRateLimiter`가 `client` / `make_client`에 주입됩니다. 기본은
   무제한(`limit=None`)이라 다른 테스트에 영향이 없고, 429를 검증할 때만 `fake_rate_limiter.limit`을 정하세요.
+- 대역도 async입니다. `fake.generate`를 바꿔 끼울 때는 `async def`로 정의하세요.
+  `RedisCache` / `RedisRateLimiter` 테스트의 `FakeRedis`도 `redis.asyncio`처럼 `get/set/execute`만 async입니다.
+- 엔드포인트 테스트는 `TestClient`가 이벤트 루프를 대신 돌리므로 평범한 `def`로 씁니다.
+  서비스나 클라이언트를 직접 `await`하는 테스트만 `@pytest.mark.anyio` + `async def`로 씁니다
+  (anyio pytest 플러그인 — FastAPI 의존성으로 설치되어 별도 패키지 불필요).
+- `test_requests_wait_for_gemini_concurrently`는 `httpx.AsyncClient`로 요청 여러 개를 동시에 보내,
+  Gemini 대기 중 다른 요청이 처리되는지 검증합니다. 이벤트 루프를 막는 코드가 들어오면 타임아웃으로 실패합니다.

@@ -145,7 +145,7 @@ def test_validation_error_is_not_cached(client, fake_cache, bad):
 def test_gemini_failure_is_not_cached(client, fake_client, fake_cache):
     """실패를 캐싱하면 TTL 동안 계속 실패하게 됩니다."""
 
-    def boom(contents, system_instruction):
+    async def boom(contents, system_instruction):
         raise genai_errors.APIError(503, {"error": {"message": "service unavailable"}})
 
     fake_client.generate = boom
@@ -159,34 +159,36 @@ def test_gemini_failure_is_not_cached(client, fake_client, fake_cache):
 # ---------- 캐시가 없거나 죽었을 때 ----------
 
 
-def test_service_works_without_cache():
+@pytest.mark.anyio
+async def test_service_works_without_cache():
     """캐시를 주입하지 않으면 NullCache로 동작 — 매번 호출하지만 실패하지는 않습니다."""
     fake = FakeGeminiClient()
     service = TranslateService(fake)
 
-    assert service.translate("안녕", "영어", "general") == DEFAULT_CANDIDATES
-    assert service.translate("안녕", "영어", "general") == DEFAULT_CANDIDATES
+    assert await service.translate("안녕", "영어", "general") == DEFAULT_CANDIDATES
+    assert await service.translate("안녕", "영어", "general") == DEFAULT_CANDIDATES
     assert len(fake.calls) == 2
 
 
-def test_null_cache_always_misses():
+@pytest.mark.anyio
+async def test_null_cache_always_misses():
     cache = NullCache()
-    cache.set("key", "value")
+    await cache.set("key", "value")
 
-    assert cache.get("key") is None
+    assert await cache.get("key") is None
 
 
 class FakeRedis:
-    """redis 클라이언트 대역 (decode_responses=True 가정)."""
+    """redis.asyncio 클라이언트 대역 (decode_responses=True 가정)."""
 
     def __init__(self):
         self.store: dict = {}
         self.ttls: dict = {}
 
-    def get(self, key):
+    async def get(self, key):
         return self.store.get(key)
 
-    def set(self, key, value, ex=None):
+    async def set(self, key, value, ex=None):
         self.store[key] = value
         self.ttls[key] = ex
 
@@ -194,65 +196,73 @@ class FakeRedis:
 class BrokenRedis:
     """모든 명령이 실패하는 Redis — 연결 끊김/타임아웃 상황."""
 
-    def get(self, key):
+    async def get(self, key):
         raise ConnectionError("redis 연결 실패")
 
-    def set(self, key, value, ex=None):
+    async def set(self, key, value, ex=None):
         raise ConnectionError("redis 연결 실패")
 
 
-def test_redis_cache_roundtrip():
+@pytest.mark.anyio
+async def test_redis_cache_roundtrip():
     cache = RedisCache(FakeRedis(), ttl_seconds=60)
-    cache.set("key", "번역 결과")
+    await cache.set("key", "번역 결과")
 
-    assert cache.get("key") == "번역 결과"
+    assert await cache.get("key") == "번역 결과"
 
 
-def test_redis_cache_stores_json_so_value_type_survives():
+@pytest.mark.anyio
+async def test_redis_cache_stores_json_so_value_type_survives():
     """리스트를 넣으면 리스트로 돌아와야 합니다 — 캐시에 담는 값이 후보 리스트이므로."""
     cache = RedisCache(FakeRedis(), ttl_seconds=60)
-    cache.set("key", ["후보1", "후보2", "후보3"])
+    await cache.set("key", ["후보1", "후보2", "후보3"])
 
-    assert cache.get("key") == ["후보1", "후보2", "후보3"]
+    assert await cache.get("key") == ["후보1", "후보2", "후보3"]
 
 
-def test_redis_cache_applies_ttl():
+@pytest.mark.anyio
+async def test_redis_cache_applies_ttl():
     fake_redis = FakeRedis()
-    RedisCache(fake_redis, ttl_seconds=123).set("key", "값")
+    await RedisCache(fake_redis, ttl_seconds=123).set("key", "값")
 
     assert fake_redis.ttls["key"] == 123
 
 
-def test_redis_cache_stores_korean_readably():
+@pytest.mark.anyio
+async def test_redis_cache_stores_korean_readably():
     """운영 중 redis-cli로 들여다볼 일이 많아 \\uXXXX로 저장되면 곤란합니다."""
     fake_redis = FakeRedis()
-    RedisCache(fake_redis, ttl_seconds=60).set("key", "한국어")
+    await RedisCache(fake_redis, ttl_seconds=60).set("key", "한국어")
 
     assert "한국어" in fake_redis.store["key"]
 
 
-def test_redis_failure_on_get_is_treated_as_miss():
+@pytest.mark.anyio
+async def test_redis_failure_on_get_is_treated_as_miss():
     """Redis가 죽어도 예외가 아니라 miss로 처리되어야 합니다."""
-    assert RedisCache(BrokenRedis(), ttl_seconds=60).get("key") is None
+    assert await RedisCache(BrokenRedis(), ttl_seconds=60).get("key") is None
 
 
-def test_redis_failure_on_set_does_not_raise():
-    RedisCache(BrokenRedis(), ttl_seconds=60).set("key", "값")
+@pytest.mark.anyio
+async def test_redis_failure_on_set_does_not_raise():
+    await RedisCache(BrokenRedis(), ttl_seconds=60).set("key", "값")
 
 
-def test_corrupted_cache_value_is_treated_as_miss():
+@pytest.mark.anyio
+async def test_corrupted_cache_value_is_treated_as_miss():
     """형식이 깨진 값이 들어 있어도 번역이 실패하면 안 됩니다."""
     fake_redis = FakeRedis()
     fake_redis.store["key"] = "{망가진 JSON"
 
-    assert RedisCache(fake_redis, ttl_seconds=60).get("key") is None
+    assert await RedisCache(fake_redis, ttl_seconds=60).get("key") is None
 
 
-def test_translate_still_works_when_redis_is_down(fake_client):
+@pytest.mark.anyio
+async def test_translate_still_works_when_redis_is_down(fake_client):
     """엔드-투-엔드 — Redis 장애 시 캐시만 건너뛰고 번역은 정상 동작."""
     service = TranslateService(fake_client, RedisCache(BrokenRedis(), ttl_seconds=60))
 
-    assert service.translate("안녕", "영어", "general") == DEFAULT_CANDIDATES
+    assert await service.translate("안녕", "영어", "general") == DEFAULT_CANDIDATES
     assert len(fake_client.calls) == 1
 
 

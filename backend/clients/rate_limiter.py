@@ -26,7 +26,7 @@ class RateLimiter(Protocol):
     요청을 막으면 Redis 장애가 곧 서비스 장애가 되므로, 제한 없이 통과시킵니다 (fail-open).
     """
 
-    def hit(self, client_id: str) -> int | None:
+    async def hit(self, client_id: str) -> int | None:
         """요청 1회를 기록합니다. 허용이면 None, 한도 초과면 다시 시도할 수 있을 때까지 남은 초."""
         ...
 
@@ -34,7 +34,7 @@ class RateLimiter(Protocol):
 class NullRateLimiter:
     """제한을 두지 않는 상태. 모든 요청을 허용합니다."""
 
-    def hit(self, client_id: str) -> int | None:
+    async def hit(self, client_id: str) -> int | None:
         return None
 
 
@@ -53,7 +53,7 @@ class RedisRateLimiter:
         # 테스트에서 시간을 옮길 수 있도록 주입받습니다.
         self._clock = clock
 
-    def hit(self, client_id: str) -> int | None:
+    async def hit(self, client_id: str) -> int | None:
         now = self._clock()
         window_index = int(now // self._window)
         key = f"{KEY_PREFIX}:{client_id}:{window_index}"
@@ -61,7 +61,8 @@ class RedisRateLimiter:
             pipe = self._client.pipeline()
             pipe.incr(key)
             pipe.expire(key, self._window)
-            count, _ = pipe.execute()
+            # incr()/expire()는 명령을 쌓기만 하고, 네트워크는 execute()에서만 탑니다.
+            count, _ = await pipe.execute()
         except Exception:
             # 연결 실패, 타임아웃 등 원인을 가리지 않고 통과시킵니다 (위 프로토콜 주석 참고).
             logger.warning("rate limit 카운터 조회 실패 - 제한 없이 진행합니다", exc_info=True)

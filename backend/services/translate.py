@@ -38,7 +38,7 @@ class TranslateService:
         # 분기하지 않아도 되도록.
         self.cache = cache or NullCache()
 
-    def translate(self, text: str, target_lang: str, style: str) -> list[str]:
+    async def translate(self, text: str, target_lang: str, style: str) -> list[str]:
         """짧은 입력 — 호출 1번에 서로 다른 후보 CANDIDATE_COUNT개."""
         style_def = self._validate(text, style)
         if len(text) > SHORT_LIMIT:
@@ -46,7 +46,7 @@ class TranslateService:
 
         # 검증을 통과한 요청만 캐시를 봅니다 — 잘못된 요청을 캐싱할 이유가 없습니다.
         cache_key = build_cache_key(text, target_lang, style)
-        cached = self.cache.get(cache_key)
+        cached = await self.cache.get(cache_key)
         # 형식을 확인하고 씁니다 — KEY_PREFIX를 올리지 않은 채 저장 형식이 바뀌어도
         # 옛 값이 그대로 나가지 않고 miss로 처리됩니다.
         if _is_valid_candidates(cached, CANDIDATE_COUNT):
@@ -54,11 +54,11 @@ class TranslateService:
 
         system_prompt = self._build_system_prompt(target_lang, style_def, CANDIDATE_COUNT)
         # 파싱에 실패하면 여기서 502가 나가고 캐시에는 아무것도 들어가지 않습니다.
-        candidates = self._parse_candidates(self._generate(text, system_prompt), CANDIDATE_COUNT)
-        self.cache.set(cache_key, candidates)
+        candidates = self._parse_candidates(await self._generate(text, system_prompt), CANDIDATE_COUNT)
+        await self.cache.set(cache_key, candidates)
         return candidates
 
-    def translate_long(self, text: str, target_lang: str, style: str) -> str:
+    async def translate_long(self, text: str, target_lang: str, style: str) -> str:
         """장문 — 청크마다 번역 1개를 받아 원문의 구분 공백을 끼워 이어붙임. 캐시하지 않음."""
         style_def = self._validate(text, style)
         system_prompt = self._build_system_prompt(target_lang, style_def, 1)
@@ -67,7 +67,7 @@ class TranslateService:
         for chunk in chunk_text(text):
             body = chunk.strip()
             if body:
-                parts.append(self._parse_candidates(self._generate(body, system_prompt), 1)[0])
+                parts.append(self._parse_candidates(await self._generate(body, system_prompt), 1)[0])
             parts.append(chunk[len(chunk.rstrip()) :])  # 원문의 문단/문장 구분 공백 보존
         return "".join(parts).strip()
 
@@ -83,9 +83,9 @@ class TranslateService:
             raise EmptyTextError("번역할 텍스트가 비어 있습니다.")
         return STYLES[style]
 
-    def _generate(self, text: str, system_prompt: str) -> str:
+    async def _generate(self, text: str, system_prompt: str) -> str:
         try:
-            return self.client.generate(text, system_prompt)
+            return await self.client.generate(text, system_prompt)
         except genai_errors.APIError as exc:
             raise TranslationEngineError("번역 엔진 호출에 실패했습니다. 잠시 후 다시 시도해주세요.") from exc
 
