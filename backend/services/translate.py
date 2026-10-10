@@ -26,9 +26,9 @@ CANDIDATE_COUNT = 3
 SHORT_LIMIT = 1000
 # 장문 번역 — 각 청크에 참고용으로 붙이는 앞 청크 원문의 꼬리 길이.
 CONTEXT_TAIL_CHARS = 300
-# 용어집이 길면 모든 청크 프롬프트가 함께 길어지므로 개수를 제한합니다.
+# 용어집이 길면 모든 청크 프롬프트가 함께 길어지므로 개수 제한
 GLOSSARY_MAX_TERMS = 30
-# 용어 30개 + thinking 토큰이 들어갈 만큼만 — 출력이 짧을수록 추출이 빨리 끝납니다.
+# 용어집 추출용 토큰 한도 
 GLOSSARY_MAX_OUTPUT_TOKENS = 2048
 
 _glossary_adapter = TypeAdapter(list[GlossaryTerm])
@@ -83,7 +83,6 @@ class TranslateService:
         chunks = chunk_text(text)
         bodies = [chunk.strip() for chunk in chunks]
 
-        # 청크가 1개면 어긋날 상대가 없으므로 추출 호출을 아낍니다.
         glossary = await self._extract_glossary(text, target_lang) if sum(map(bool, bodies)) > 1 else []
 
         jobs = []
@@ -98,9 +97,7 @@ class TranslateService:
         try:
             translations = iter(await asyncio.gather(*jobs))
         except Exception:
-            # 청크 하나라도 실패하면 결과는 어차피 502입니다. gather는 나머지를 취소하지 않으므로
-            # 직접 취소하고, 취소가 끝날 때까지 기다린 뒤 원래 예외를 올립니다 (쿼터 낭비 방지).
-            # TaskGroup은 예외를 ExceptionGroup으로 감싸 502 대신 500이 나가므로 쓰지 않습니다.
+            # 청크 하나라도 실패하면 결과는 502. 쿼터 낭비 방지를 위해 나머지 청크 번역은 취소
             for job in jobs:
                 job.cancel()
             await asyncio.gather(*jobs, return_exceptions=True)
@@ -150,7 +147,7 @@ class TranslateService:
                 ),
                 timeout=settings.GLOSSARY_TIMEOUT_SECONDS,
             )
-            # 잘못된 JSON과 형식 불일치 모두 ValidationError로 옵니다.
+            # 잘못된 JSON과 형식 불일치 모두 ValidationError
             return _glossary_adapter.validate_json(raw)[:GLOSSARY_MAX_TERMS]
         except (genai_errors.APIError, TranslationEngineError, ValidationError, TimeoutError) as exc:
             logger.warning("glossary extraction failed, translating without it: %s", type(exc).__name__)
@@ -211,7 +208,7 @@ class TranslateService:
             terms = "\n".join(f"- {term.source} → {term.target}" for term in glossary)
             sections.append(f"용어집 — 아래 용어가 나오면 반드시 이 번역을 쓰세요:\n{terms}")
         if context:
-            # 참고 문맥은 contents가 아니라 여기에 둡니다 — 사용자 입력과 섞이면 함께 번역될 위험이 큽니다.
+            # 참고 문맥 — 사용자 입력과 섞이면 함께 번역될 위험
             sections.append(
                 "참고용 앞 문맥 — 사용자가 준 텍스트 바로 앞에 오는 원문입니다. 흐름과 지칭을 맞추는 데만 쓰고, "
                 "번역하거나 출력에 포함하지 마세요. 출력에는 사용자가 준 텍스트의 번역만 담으세요.\n"
