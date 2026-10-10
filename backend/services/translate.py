@@ -162,8 +162,12 @@ class TranslateService:
         try:
             candidates = json.loads(raw)
         except json.JSONDecodeError as exc:
+            logger.warning("model output malformed: expected=%d got=invalid-json", count)
             raise TranslationEngineError(message) from exc
         if not _is_valid_candidates(candidates, count):
+            # 확률적 오류 발생 지점 - /translate/long(zh)에서 청크 응답이 여기(또는 위 JSON 파싱)에 걸려 502가 나간 적이 있어 로깅 추적
+            got = f"list[{len(candidates)}]" if isinstance(candidates, list) else type(candidates).__name__
+            logger.warning("model output malformed: expected=%d got=%s", count, got)
             raise TranslationEngineError(message)
         return [c.strip() for c in candidates]
 
@@ -188,7 +192,10 @@ class TranslateService:
             f'- 원문: "{ex["source"]}" → 번역: "{ex["target"]}"' for ex in style_def["examples"]
         )
         if count == 1:
-            output = "번역 결과 1개를 JSON 문자열 배열로만 출력하세요. 설명이나 부연 설명을 붙이지 마세요."
+            output = (
+                "번역 결과를 문자열 1개만 담은 JSON 배열로 출력하세요. 문단이 여러 개여도 나누지 말고, "
+                "원문의 줄바꿈을 그대로 유지해 하나의 문자열에 담으세요. 설명이나 부연 설명을 붙이지 마세요."
+            )
         else:
             output = (
                 f"어휘나 어순이 서로 다른 번역 후보 {count}개를 만들고, 모든 후보가 위 스타일을 지키게 하세요. "

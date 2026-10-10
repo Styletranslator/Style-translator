@@ -76,6 +76,7 @@ Redis와 Gemini를 부르는 경로는 모두 `async`입니다 — `/translate`,
 `clients/gemini.py` — 모델 `gemini-3.5-flash`, temperature 0.3, max_output_tokens 4096. 비동기 API(`client.aio.models.generate_content`)로 호출합니다.
 structured output(`response_mime_type="application/json"`, `response_schema=list[str]`)으로 JSON 문자열 배열을 받고,
 `TranslateService._parse_candidates()`가 요청한 후보 개수인지 검증합니다.
+형식이 어긋나면 502 전에 `model output malformed: expected=N got=...` warning을 남깁니다 (원소 개수·타입만, 원문 없음).
 
 `translate()`는 호출 1번에 후보 `CANDIDATE_COUNT`(3)개. 한글은 1,000자를 넘으면 후보 3개가 4096 토큰을 넘겨 잘릴 수 있어 `SHORT_LIMIT`로 막습니다.
 `translate_long()`은 `chunk_text()`가 문단 → 문장 → 글자 순으로 `CHUNK_SIZE`(2,000자) 이하 청크로 나누고,

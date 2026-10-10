@@ -40,8 +40,6 @@ class GeminiClient:
                 thinking_config=genai_types.ThinkingConfig(thinking_level=genai_types.ThinkingLevel.LOW),
             ),
         )
-        # 운영 로그로 SHORT_LIMIT / CHUNK_SIZE를 조정합니다 (측정 스크립트는 쿼터를 따로 씀).
-        # thinking 토큰도 max_output_tokens에 포함됩니다. 원문은 남기지 않습니다.
         usage = response.usage_metadata or genai_types.GenerateContentResponseUsageMetadata()
         finish = response.candidates[0].finish_reason if response.candidates else None
         truncated = finish == genai_types.FinishReason.MAX_TOKENS

@@ -137,14 +137,16 @@ def test_translate_returns_502_when_gemini_fails(make_client):
         json.dumps({"candidates": ["후보 1", "후보 2", "후보 3"]}),
     ],
 )
-def test_translate_returns_502_when_model_output_is_malformed(make_client, reply):
+def test_translate_returns_502_when_model_output_is_malformed(make_client, caplog, reply):
     """모델이 약속한 형식(문자열 3개 배열)을 어기면 업스트림 오류(502)로 처리."""
     test_client, _ = make_client(reply=reply)
 
-    res = test_client.post("/translate", json=payload())
+    with caplog.at_level(logging.WARNING, logger="services.translate"):
+        res = test_client.post("/translate", json=payload())
 
     assert res.status_code == 502
     assert error_code(res) == "TRANSLATION_ENGINE_ERROR"
+    assert "model output malformed" in caplog.text
 
 
 def test_translate_returns_500_with_generic_message_on_unexpected_error(make_client):
