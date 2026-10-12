@@ -25,5 +25,9 @@ class Settings:
     RATE_LIMIT_REQUESTS: int = int(os.environ.get("RATE_LIMIT_REQUESTS", "10"))
     RATE_LIMIT_WINDOW_SECONDS: int = int(os.environ.get("RATE_LIMIT_WINDOW_SECONDS", "60"))
 
+    # 장문 번역의 용어집 선추출 타임아웃. 모든 청크가 추출을 기다리므로 번역 호출보다 짧게 잡고,
+    # 넘기면 용어집 없이 번역합니다 (services/translate.py).
+    GLOSSARY_TIMEOUT_SECONDS: float = float(os.environ.get("GLOSSARY_TIMEOUT_SECONDS", "8"))
+
 
 settings = Settings()

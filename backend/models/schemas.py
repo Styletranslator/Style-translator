@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class TranslateRequest(BaseModel):
@@ -15,6 +15,13 @@ class TranslateResponse(BaseModel):
 class LongTranslateResponse(BaseModel):
     translation: str
     style: str
+
+
+class GlossaryTerm(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    source: str = Field(min_length=1)
+    target: str = Field(min_length=1)
 
 
 class HealthData(BaseModel):
