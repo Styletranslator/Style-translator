@@ -7,7 +7,7 @@
 <circle cx="1200" cy="500" r="380" fill="#8E3214"/>
 </g>
 <g id="glow/wine" filter="url(#filter2_f_0_84)">
-<ellipse cx="640" cy="1070" rx="500" ry="210" fill="#570F0B"/>
+<ellipse cx="640" cy="1050" rx="500" ry="210" fill="#570F0B"/>
 </g>
 </g>
 <defs>
@@ -21,7 +21,7 @@
 <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
 <feGaussianBlur stdDeviation="100" result="effect1_foregroundBlur_0_84"/>
 </filter>
-<filter id="filter2_f_0_84" x="-30" y="690" width="1340" height="760" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<filter id="filter2_f_0_84" x="-30" y="670" width="1340" height="760" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
 <feFlood flood-opacity="0" result="BackgroundImageFix"/>
 <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
 <feGaussianBlur stdDeviation="85" result="effect1_foregroundBlur_0_84"/>

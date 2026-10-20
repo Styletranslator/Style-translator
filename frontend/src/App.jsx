@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import styles from './App.module.css'
 import { fetchStyles, MAX_LENGTH, SHORT_LIMIT } from './api/client'
 import { useTranslate } from './hooks/useTranslate'
 import { DEFAULT_LANGUAGE, LANGUAGES } from './constants/languages'
@@ -7,9 +6,12 @@ import Header from './components/Header/Header'
 import StyleCarousel from './components/StyleCarousel/StyleCarousel'
 import InputPanel from './components/InputPanel/InputPanel'
 import LangToggle from './components/LangToggle/LangToggle'
-import StyleChip from './components/StyleChip/StyleChip'
+import Pill from './components/Pill/Pill'
 import PlayButton from './components/PlayButton/PlayButton'
 import ResultPanel from './components/ResultPanel/ResultPanel'
+// 자식 컴포넌트 CSS 뒤에 들어가야 className 덮어쓰기(styleChip)가 이김
+import typography from './styles/typography.module.css'
+import styles from './App.module.css'
 
 // /styles 실패 시 사용 — 백엔드 styles.py의 label과 맞춤
 const FALLBACK_STYLES = {
@@ -59,7 +61,7 @@ export default function App() {
           controls={
             <>
               <LangToggle languages={LANGUAGES} value={targetLang} onChange={setTargetLang} />
-              <StyleChip label={styleMap[style] ?? style} />
+              <Pill type="chip" className={styles.styleChip}>{styleMap[style] ?? style}</Pill>
             </>
           }
           action={<PlayButton isLoading={pending !== null} onClick={handleTranslate} />}
@@ -74,7 +76,7 @@ export default function App() {
           info={resultInfo}
         />
       </main>
-      <footer className={styles.footer}>© 2026 Style Translator · FastAPI + Gemini API</footer>
+      <footer className={`${styles.footer} ${typography.uiFooter}`}>© 2026 Style Translator · FastAPI + Gemini API</footer>
     </div>
   )
 }

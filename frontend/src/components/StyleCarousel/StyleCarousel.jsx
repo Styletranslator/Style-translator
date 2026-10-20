@@ -1,5 +1,6 @@
 import { useRef } from 'react'
-import StyleCard from './StyleCard'
+import StyleCard from '../StyleCard/StyleCard'
+import typography from '../../styles/typography.module.css'
 import styles from './StyleCarousel.module.css'
 
 const SWIPE_THRESHOLD = 40
@@ -56,7 +57,7 @@ export default function StyleCarousel({ styles: styleMap, value, onChange }) {
 
   return (
     <section className={styles.carousel}>
-      <p className={styles.eyebrow} aria-hidden="true">NOW CHOOSING · 말투 고르기</p>
+      <p className={`${styles.eyebrow} ${typography.monoEyebrow}`} aria-hidden="true">NOW CHOOSING · 말투 고르기</p>
       <div
         className={styles.cards}
         role="radiogroup"
@@ -72,6 +73,8 @@ export default function StyleCarousel({ styles: styleMap, value, onChange }) {
             styleKey={key}
             label={label}
             number={index + 1}
+            isActive={index === activeIndex}
+            className={styles.slot}
             position={getPosition(index, activeIndex, entries.length)}
             onSelect={() => handleCardClick(key)}
           />

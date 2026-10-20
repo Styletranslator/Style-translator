@@ -1,3 +1,4 @@
+import typography from '../../styles/typography.module.css'
 import styles from './ResultPanel.module.css'
 
 // 스켈레톤 줄 폭 — Figma `77:335` 비율. 빈 문자열은 문단 사이 간격.
@@ -7,7 +8,7 @@ const SKELETON_WIDTHS = ['86%', '91%', '82%', '56%', '', '89%', '84%', '67%']
 export default function LongLoading({ styleLabel }) {
   return (
     <>
-      <div className={styles.header}>
+      <div className={`${styles.header} ${typography.monoLabel}`}>
         <span>결과 · {styleLabel} · 장문</span>
         <span>번역 중…</span>
       </div>
@@ -17,7 +18,7 @@ export default function LongLoading({ styleLabel }) {
             width ? <span key={index} style={{ width }} /> : <i key={index} />,
           )}
         </div>
-        <p className={styles.loadingNote}>긴 글은 문단을 나눠 번역한 뒤 이어 붙여서, 짧은 글보다 오래 걸려요.</p>
+        <p className={`${styles.loadingNote} ${typography.cardSub}`}>긴 글은 문단을 나눠 번역한 뒤 이어 붙여서, 짧은 글보다 오래 걸려요.</p>
       </div>
     </>
   )

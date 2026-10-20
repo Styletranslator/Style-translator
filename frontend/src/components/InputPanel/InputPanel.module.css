@@ -1,8 +1,8 @@
 .panel {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 22px 18px 14px 26px;
+  gap: var(--space-md);
+  padding: var(--space-lg) var(--space-md) var(--space-md) var(--space-lg);
   border: 1px solid var(--color-glass-border);
   border-radius: var(--radius-panel);
   background: var(--color-glass-bg);
@@ -14,9 +14,6 @@
   display: flex;
   justify-content: space-between;
   gap: var(--space-sm);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.08em;
   color: var(--color-text-muted);
 }
 
@@ -38,8 +35,6 @@
   outline: none;
   resize: none;
   background: none;
-  font-size: 22px;
-  line-height: 1.4;
   field-sizing: content;
 }
 
@@ -54,7 +49,7 @@
 /* 장문은 패널이 끝없이 늘지 않게 높이 고정 + 내부 스크롤 */
 .panel[data-long='true'] .source {
   height: 200px;
-  font-size: 18px;
+  font: var(--text-body-source-md);
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--color-glass-border) transparent;
@@ -62,7 +57,6 @@
 
 .hint {
   margin: 0;
-  font-size: 13px;
   color: var(--color-brand-amber);
 }
 
@@ -70,30 +64,20 @@
   display: flex;
   align-items: center;
   gap: var(--space-sm);
-  margin-top: 18px;
+  margin-top: var(--space-sm);
 }
 
 .controlLabel {
-  font-size: 13px;
   color: var(--color-text-muted);
   white-space: nowrap;
 }
 
 .longBadge {
-  padding: 6px var(--space-sm);
-  border: 1px solid var(--color-brand-amber);
-  border-radius: var(--radius-pill);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  color: var(--color-brand-amber);
-  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .counter {
   margin-left: auto;
-  font-family: var(--font-mono);
-  font-size: 14px;
   color: var(--color-text-muted);
   white-space: nowrap;
 }
@@ -105,11 +89,11 @@
 @media (max-width: 640px) {
   .panel {
     gap: var(--space-sm);
-    padding: 18px 14px 14px 18px;
+    padding: var(--space-md);
   }
 
   .source {
-    font-size: 18px;
+    font: var(--text-body-source-md);
   }
 
   .controlLabel,
@@ -125,6 +109,11 @@
 
   .panel[data-long='true'] .counter {
     display: none;
+  }
+
+  .controls {
+    gap: var(--space-xs);
+    margin-top: var(--space-lg);
   }
 
   .panel[data-long='true'] .controls {

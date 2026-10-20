@@ -1,4 +1,5 @@
 import { useRef } from 'react'
+import typography from '../../styles/typography.module.css'
 import styles from './LangToggle.module.css'
 
 // 라디오 그룹 동작: ←→로 이동하면 바로 선택되고, 탭 정지는 선택된 칸 하나뿐.
@@ -26,7 +27,7 @@ export default function LangToggle({ languages, value, onChange }) {
           aria-checked={language.code === value}
           aria-label={language.label}
           tabIndex={language.code === value ? 0 : -1}
-          className={styles.segment}
+          className={`${styles.segment} ${typography.uiSegment}`}
           onClick={() => onChange(language.code)}
         >
           <span className={styles.full}>{language.label}</span>

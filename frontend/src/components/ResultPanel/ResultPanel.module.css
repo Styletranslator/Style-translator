@@ -1,8 +1,8 @@
 .panel {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 18px 14px 14px;
+  gap: var(--space-2xs);
+  padding: var(--space-md);
   border: 1px solid var(--color-glass-border);
   border-radius: var(--radius-panel);
   background: var(--color-glass-bg);
@@ -21,10 +21,7 @@
   justify-content: space-between;
   gap: var(--space-sm);
   min-height: 22px;
-  padding: 0 12px 8px;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.08em;
+  padding: 0 var(--space-sm) var(--space-xs);
   color: var(--color-text-muted);
 }
 
@@ -32,103 +29,44 @@
   display: none;
 }
 
-.row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-lg);
-  width: 100%;
-  min-height: 60px;
-  padding: var(--space-md) 20px var(--space-md) 18px;
-  border: none;
-  border-radius: var(--radius-row);
-  background: none;
-  text-align: left;
-  cursor: pointer;
-}
-
-.row:hover {
-  background: var(--color-glass-bg-strong);
-}
-
-.row[aria-pressed='true'] {
-  background: var(--color-glass-bg-strong);
-}
-
-.rowNumber {
-  font-family: var(--font-mono);
-  font-size: 14px;
-  color: var(--color-text-faint);
-}
-
-.row[aria-pressed='true'] .rowNumber {
-  color: var(--color-brand-amber);
-}
-
-.rowText {
-  flex: 1;
-  min-width: 0;
-  font-size: 22px;
-  font-weight: 500;
-  line-height: 1.35;
-  letter-spacing: -0.01em;
-  overflow-wrap: anywhere;
-}
-
+/* Figma CopyButton — Pill(Type=Select)의 높이만 줄인 인스턴스 */
 .copyButton {
   height: 32px;
-  padding: 0 var(--space-md);
-  border: 1px solid var(--color-glass-border);
-  border-radius: var(--radius-pill);
-  background: var(--color-glass-bg-strong);
-  font-family: var(--font-sans);
-  font-size: 15px;
-  font-weight: 500;
-  letter-spacing: 0;
-  color: var(--color-text-default);
-  cursor: pointer;
 }
 
 .longBody {
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
-  padding: 6px 12px 14px;
+  padding: var(--space-xs) var(--space-sm) var(--space-md);
 }
 
 .longText {
   margin: 0;
-  font-size: 19px;
-  font-weight: 500;
-  line-height: 1.6;
-  letter-spacing: -0.01em;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
 .longInfo {
   margin: 0;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.08em;
   color: var(--color-text-faint);
 }
 
 .skeleton {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding-top: 2px;
+  gap: var(--space-md);
 }
 
 .skeleton span {
   height: 12px;
-  border-radius: 6px;
+  border-radius: var(--radius-xs);
   background: var(--color-glass-bg-strong);
   animation: shimmer 1.2s ease-in-out infinite alternate;
 }
 
 .skeleton i {
-  height: 8px;
+  height: var(--space-xs);
 }
 
 @keyframes shimmer {
@@ -139,14 +77,12 @@
 
 .loadingNote {
   margin: 0;
-  font-size: 13px;
   color: var(--color-text-muted);
 }
 
 .error {
   margin: 0;
-  padding: 8px 12px;
-  font-size: 15px;
+  padding: var(--space-xs) var(--space-sm);
   color: var(--color-brand-amber);
 }
 
@@ -171,12 +107,8 @@
 
 @media (max-width: 640px) {
   .panel {
-    gap: 2px;
-    padding: 16px 8px 10px;
-  }
-
-  .header {
-    padding: 0 10px 6px;
+    gap: var(--space-3xs);
+    padding: var(--space-md) var(--space-xs) var(--space-sm);
   }
 
   .desktopOnly {
@@ -187,20 +119,23 @@
     display: inline;
   }
 
-  .row {
-    gap: var(--space-sm);
-    padding: var(--space-sm);
-  }
-
-  .rowText {
-    font-size: 17px;
+  .copyButton {
+    height: 30px;
   }
 
   .longBody {
-    padding: 6px 10px 12px;
+    padding: var(--space-2xs) var(--space-sm) var(--space-sm);
   }
 
   .longText {
-    font-size: 17px;
+    font: var(--text-body-longform-mobile);
+  }
+
+  .skeleton {
+    gap: var(--space-sm);
+  }
+
+  .skeleton span {
+    height: 11px;
   }
 }

@@ -1,12 +1,13 @@
-import CandidateRow from './CandidateRow'
+import CandidateRow from '../CandidateRow/CandidateRow'
 import LongLoading from './LongLoading'
 import LongResult from './LongResult'
+import typography from '../../styles/typography.module.css'
 import styles from './ResultPanel.module.css'
 
 // info: 헤더에 쓸 요청 당시 값 { styleLabel, languageLabel, sourceLength } — 로딩 중엔 진행 중인 요청 기준.
 function PanelBody({ candidates, selected, onSelect, error, isLoadingLong, info }) {
   if (error) {
-    return <p className={styles.error} role="alert">{error}</p>
+    return <p className={`${styles.error} ${typography.uiPill}`} role="alert">{error}</p>
   }
   if (isLoadingLong) {
     return <LongLoading styleLabel={info.styleLabel} />
@@ -17,7 +18,7 @@ function PanelBody({ candidates, selected, onSelect, error, isLoadingLong, info 
   }
   return (
     <>
-      <div className={styles.header}>
+      <div className={`${styles.header} ${typography.monoLabel}`}>
         <span>
           결과 · {info.styleLabel} · <span className={styles.desktopOnly}>마음에 드는 번역을 고르세요</span>
           <span className={styles.mobileOnly}>하나를 고르세요</span>
