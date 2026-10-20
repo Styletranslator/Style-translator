@@ -19,10 +19,14 @@ npm test         # vitest run
 
 | 파일 | 역할 |
 |---|---|
-| `src/App.jsx` | 화면 전체. 마운트 시 `fetchStyles()`로 드롭다운 채움 (실패 시 `FALLBACK_STYLES`) |
+| `src/App.jsx` | 컨테이너. 상태(text/targetLang/style)와 훅을 컴포넌트에 연결. 마운트 시 `fetchStyles()`로 캐러셀 채움 (실패 시 `FALLBACK_STYLES`) |
 | `src/api/client.js` | `fetchStyles()`, `fetchTranslation()` — fetch 래퍼 |
-| `src/hooks/useTranslate.js` | `{candidates, selected, setSelected, loading, error, translate}` — 번역 호출 + 후보 3개/선택 상태 관리 |
-| `src/App.css`, `src/index.css` | 스타일 |
+| `src/hooks/useTranslate.js` | `{candidates, selected, setSelected, result, pending, error, inputHint, translate}` — 번역 호출 + 후보 선택. `result`/`pending`은 요청 정보 `{style, targetLang, sourceLength, isLong}` (결과 헤더는 요청 당시 값으로 표시) |
+| `src/components/<Name>/` | 프레젠테이션 컴포넌트 + CSS Module — `Header`, `StyleCarousel`(+`StyleCard`), `InputPanel`, `LangToggle`, `StyleChip`, `PlayButton`, `ResultPanel`(+`CandidateRow`, `LongResult`, `LongLoading`) |
+| `src/constants/` | `styleCovers.js`(카드 커버 글자·설명), `languages.js`(도착 언어 목록) |
+| `src/index.css` | 디자인 토큰(`:root`, Figma 변수와 같은 이름) + 전역 기본 스타일 |
+
+화면 기준은 `DESIGN.md`(Figma 확정안)입니다.
 
 ## API 연동
 

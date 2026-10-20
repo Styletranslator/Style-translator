@@ -1,0 +1,133 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 22px 18px 14px 26px;
+  border: 1px solid var(--color-glass-border);
+  border-radius: var(--radius-panel);
+  background: var(--color-glass-bg);
+  -webkit-backdrop-filter: var(--blur-glass);
+  backdrop-filter: var(--blur-glass);
+}
+
+.labelRow {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--color-text-muted);
+}
+
+.longNotice,
+.longCounter {
+  color: var(--color-brand-amber);
+}
+
+.longCounter {
+  display: none;
+}
+
+.source {
+  width: 100%;
+  min-height: 1.4em;
+  max-height: 200px;
+  padding: 0;
+  border: none;
+  outline: none;
+  resize: none;
+  background: none;
+  font-size: 22px;
+  line-height: 1.4;
+  field-sizing: content;
+}
+
+.source::placeholder {
+  color: var(--color-text-faint);
+}
+
+.panel:focus-within {
+  border-color: var(--color-text-muted);
+}
+
+/* 장문은 패널이 끝없이 늘지 않게 높이 고정 + 내부 스크롤 */
+.panel[data-long='true'] .source {
+  height: 200px;
+  font-size: 18px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-glass-border) transparent;
+}
+
+.hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-brand-amber);
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-top: 18px;
+}
+
+.controlLabel {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.longBadge {
+  padding: 6px var(--space-sm);
+  border: 1px solid var(--color-brand-amber);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--color-brand-amber);
+  white-space: nowrap;
+}
+
+.counter {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.panel[data-long='true'] .counter {
+  color: var(--color-brand-amber);
+}
+
+@media (max-width: 640px) {
+  .panel {
+    gap: var(--space-sm);
+    padding: 18px 14px 14px 18px;
+  }
+
+  .source {
+    font-size: 18px;
+  }
+
+  .controlLabel,
+  .longNotice,
+  .longBadge {
+    display: none;
+  }
+
+  /* 컨트롤 줄 폭이 모자라 장문 카운터를 원문 라벨 줄로 옮김 */
+  .longCounter {
+    display: inline;
+  }
+
+  .panel[data-long='true'] .counter {
+    display: none;
+  }
+
+  .panel[data-long='true'] .controls {
+    justify-content: space-between;
+  }
+}

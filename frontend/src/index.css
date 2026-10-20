@@ -1,111 +1,79 @@
+/* 디자인 토큰 — Figma 변수 컬렉션 `Style Translator`(모드 Dark)와 이름을 맞춤 (경로의 `/` → `-`).
+   값을 바꿀 땐 Figma 쪽을 먼저 바꾸고 여기를 따라 고칩니다. */
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  --color-bg-base: #1a0a05;
+  --color-bg-amber: #cd8228;
+  --color-bg-rust: #8e3214;
+  --color-bg-wine: #570f0b;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  --color-text-default: #fbf1e6;
+  --color-text-muted: #fbf1e699;
+  --color-text-faint: #fbf1e666;
+  --color-ink: #1a0a05;
+  --color-control-selected: #fbf1e6;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  --color-brand-orange: #ff7a3d;
+  --color-brand-amber: #ffc46b;
 
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
+  --color-glass-bg: #1a0a0573;
+  --color-glass-bg-strong: #fbf1e61f;
+  --color-glass-border: #fbf1e62e;
+
+  --color-cover-general: #d5b797;
+  --color-cover-general-ink: #2a140b;
+  --color-cover-formal: #662b15;
+  --color-cover-formal-ink: #eed2ac;
+  --color-cover-sns: #ff7a3d;
+  --color-cover-sns-ink: #1a0a05;
+
+  --radius-pill: 999px;
+  --radius-panel: 28px;
+  --radius-card: 20px;
+  --radius-cover: 14px;
+  --radius-row: 16px;
+
+  --space-xs: 8px;
+  --space-sm: 12px;
+  --space-md: 16px;
+  --space-lg: 24px;
+
+  /* 텍스트 스타일 ST/* — Figma는 Noto Sans KR 임시 지정, 코드는 Pretendard */
+  --font-sans: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+  /* 이펙트 스타일 ST/shadow/card, ST/glass/blur */
+  --shadow-card: 0 24px 48px #00000066;
+  --blur-glass: blur(24px);
+
+  color-scheme: dark;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
+* {
+  box-sizing: border-box;
 }
 
 body {
   margin: 0;
+  min-height: 100vh;
+  background: var(--color-bg-base) url('./assets/bg-desktop.svg') center / cover no-repeat fixed;
+  color: var(--color-text-default);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
 }
 
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
+button,
+textarea {
+  font: inherit;
+  color: inherit;
 }
 
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
+:focus-visible {
+  outline: 2px solid var(--color-brand-amber);
+  outline-offset: 2px;
 }
 
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
+@media (max-width: 640px) {
+  body {
+    background-image: url('./assets/bg-mobile.svg');
   }
-}
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
-}
-p {
-  margin: 0;
-}
-
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
-}
-
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
 }
