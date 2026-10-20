@@ -137,8 +137,10 @@ src/
 
 ## 6. 스타일링
 
-- **디자인 토큰은 `src/index.css`의 `:root` 한 곳에만.** 컴포넌트 CSS는 `var(--…)`만 쓰고 hex 값을 직접 쓰지 않는다.
-  (현재 `App.css`에도 `:root` 토큰이 있음 — 리디자인 시 index.css로 합치고 제거)
+- **디자인 토큰은 `src/styles/tokens.css`의 `:root` 한 곳에만.** 컴포넌트 CSS는 `var(--…)`만 쓰고 hex 값을 직접 쓰지 않는다.
+- **텍스트 스타일은 `src/styles/typography.module.css` 클래스를 JSX `className`으로.** 바뀌는 경우만 CSS에서 `font: var(--text-…)`.
+  전역은 `reset`, 텍스트 스타일은 `typography` 레이어에 있고 컴포넌트 CSS는 레이어 밖이라 항상 이긴다. 컴포넌트 CSS에 `@layer`를 쓰지 않는다
+  (Vite가 CSS를 파일마다 복사해 넣어 들어가는 순서를 믿을 수 없어서 레이어로 우선순위를 고정함).
 - **컴포넌트 스타일은 CSS Modules** (`Foo.module.css`, 컴포넌트 옆에 둠). Vite 기본 지원이라 설치 불필요.
   **왜:** 전역 클래스는 이름 충돌과 "이 클래스 지워도 되나?" 불안을 만든다. 모듈은 컴포넌트를 지우면 스타일도 같이 사라진다.
 - 클래스명은 역할 기준 camelCase (`styles.coverText`), 생김새 기준 금지 (`styles.orangeBox` ✗).
