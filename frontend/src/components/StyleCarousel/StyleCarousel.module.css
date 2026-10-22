@@ -1,0 +1,77 @@
+.carousel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.cards {
+  position: relative;
+  width: 520px;
+  height: 310px;
+  touch-action: pan-y;
+}
+
+/* 카드 배치 — Figma `Cards`(520×310) 안 좌표를 중심 기준 오프셋으로 옮긴 값.
+   생김새와 transition은 StyleCard가 담당. */
+.slot {
+  --dx: 0px;
+  --dy: 0px;
+  --rotate: 0deg;
+  --scale: 1;
+
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) translate(var(--dx), var(--dy)) rotate(var(--rotate)) scale(var(--scale));
+}
+
+.slot[data-position='active'] {
+  --dy: -3px;
+  z-index: 1;
+}
+
+.slot[data-position='prev'] {
+  --dx: -167.6px;
+  --dy: -5.3px;
+  --rotate: -2deg;
+}
+
+.slot[data-position='next'] {
+  --dx: 167.6px;
+  --dy: 3.2px;
+  --rotate: 2deg;
+}
+
+.slot[data-position='hidden'] {
+  --scale: 0.6;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 모바일 `StyleCarousel`(300×180) 좌표 */
+@media (max-width: 640px) {
+  .eyebrow {
+    display: none;
+  }
+
+  .cards {
+    width: 300px;
+    height: 180px;
+  }
+
+  .slot[data-position='prev'] {
+    --dx: -91.9px;
+    --dy: -0.4px;
+  }
+
+  .slot[data-position='next'] {
+    --dx: 91.9px;
+    --dy: 4.4px;
+  }
+}
