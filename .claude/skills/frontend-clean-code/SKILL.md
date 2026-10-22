@@ -9,7 +9,7 @@ description: 말투 번역기 frontend/ 코드를 작성·수정·리팩터링�
 기준에서 나왔다. 규칙이 상황과 안 맞으면 규칙을 어기지 말고, 이유를 PR에 적고 이 문서를 고친다.
 
 기계적으로 판정되는 규칙은 `frontend/eslint.config.js`가 강제한다. 이 문서는 린트가 못 잡는
-**판단**을 다룬다. 화면의 생김새는 `frontend/DESIGN.md`가 기준이다.
+**판단**을 다룬다. 화면의 생김새는 Figma 확정안이 기준이고, 코드에서는 `src/styles/`의 토큰·텍스트 스타일이 그것을 옮겨 둔 곳이다.
 
 ---
 
@@ -107,7 +107,7 @@ src/
   - `{count && <X/>}` 금지 — `0`이 화면에 찍힌다. `{count > 0 && <X/>}`.
 - **리스트 key:** 안정적인 id가 있으면 id. 서버 후보처럼 순서가 고정이고 재정렬/삭제가 없으면 index 허용 — 주석으로 이유를 남긴다.
 - **접근성은 기본값:** 클릭 가능한 건 `<button>`(div onClick 금지), 아이콘 버튼엔 `aria-label`,
-  선택 상태는 `aria-pressed`/`aria-checked`. 근거는 DESIGN.md의 각 컴포넌트 항목.
+  선택 상태는 `aria-pressed`/`aria-checked`, 비동기로 바뀌는 영역은 `aria-live`, 에러는 `role="alert"`.
 - **`useEffect`는 마지막 수단.** 외부 시스템(DOM API, 구독, 타이머)과 동기화할 때만 쓴다.
   props → state 복사, 이벤트에 대한 반응, 데이터 fetch에는 쓰지 않는다
   (각각 렌더 중 계산 / 이벤트 핸들러 / TanStack Query).
@@ -145,7 +145,7 @@ src/
   **왜:** 전역 클래스는 이름 충돌과 "이 클래스 지워도 되나?" 불안을 만든다. 모듈은 컴포넌트를 지우면 스타일도 같이 사라진다.
 - 클래스명은 역할 기준 camelCase (`styles.coverText`), 생김새 기준 금지 (`styles.orangeBox` ✗).
 - 상태 표현은 data 속성 또는 aria 속성으로: `[aria-pressed='true'] { … }` — 접근성과 스타일이 한 소스를 공유.
-- 반응형 기준점은 DESIGN.md를 따른다 (모바일 ≤ 640px).
+- 반응형 기준점은 모바일 ≤ 640px 하나. 모바일은 축소가 아니라 Figma `Size=Compact` variant를 같은 컴포넌트의 미디어 쿼리로 구현한다.
 
 ---
 
@@ -178,7 +178,7 @@ src/
 ## 9. 작업 절차
 
 **시작 전**
-1. `frontend/CLAUDE.md` 확인. 화면 작업이면 `frontend/DESIGN.md`도.
+1. `frontend/CLAUDE.md` 확인. 화면 작업이면 Figma 확정안과 `src/styles/`의 토큰·텍스트 스타일도.
 2. 바꿀 코드가 어느 레이어인지 정한다. 두 레이어 이상에 걸치면 레이어별로 나눠 작업한다.
 3. 새 라이브러리가 필요하면 먼저 사용자에게 이유와 함께 확인한다 (TanStack Query는 사전 승인됨, Zustand는 2장 기준 충족 시).
 

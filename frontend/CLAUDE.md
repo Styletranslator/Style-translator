@@ -28,7 +28,7 @@ npm test         # vitest run
 | `src/styles/typography.module.css` | 텍스트 스타일 클래스 (Figma `ST/*`와 1:1). JSX에서 className으로 붙임 |
 | `src/index.css` | 전역 기본 스타일만 |
 
-화면 기준은 `DESIGN.md`(Figma 확정안)입니다.
+화면 기준은 Figma 확정안이고, 코드에서는 `src/styles/`의 토큰·텍스트 스타일이 그것을 옮겨 둔 곳입니다.
 
 ## API 연동
 
