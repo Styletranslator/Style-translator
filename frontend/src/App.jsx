@@ -1,104 +1,82 @@
 import { useEffect, useState } from 'react'
-import './App.css'
-import { fetchStyles, MAX_LENGTH } from './api/client'
+import { fetchStyles, MAX_LENGTH, SHORT_LIMIT } from './api/client'
 import { useTranslate } from './hooks/useTranslate'
+import { DEFAULT_LANGUAGE, LANGUAGES } from './constants/languages'
+import Header from './components/Header/Header'
+import StyleCarousel from './components/StyleCarousel/StyleCarousel'
+import InputPanel from './components/InputPanel/InputPanel'
+import LangToggle from './components/LangToggle/LangToggle'
+import Pill from './components/Pill/Pill'
+import PlayButton from './components/PlayButton/PlayButton'
+import ResultPanel from './components/ResultPanel/ResultPanel'
+// 자식 컴포넌트 CSS 뒤에 들어가야 className 덮어쓰기(styleChip)가 이김
+import typography from './styles/typography.module.css'
+import styles from './App.module.css'
 
+// /styles 실패 시 사용 — 백엔드 styles.py의 label과 맞춤
 const FALLBACK_STYLES = {
   general: '일반체',
-  formal: '격식체 (해요체)',
-  sns: 'SNS체 (대화체)',
+  formal: '격식체',
+  sns: 'SNS체',
 }
 
-const LANGUAGES = [
-  { code: 'en', label: '영어' },
-  { code: 'ko', label: '한국어' },
-  { code: 'ja', label: '일본어' },
-  { code: 'zh', label: '중국어' },
-]
-
 export default function App() {
-  const [styles, setStyles] = useState(FALLBACK_STYLES)
+  const [styleMap, setStyleMap] = useState(FALLBACK_STYLES)
   const [text, setText] = useState('')
-  const [targetLang, setTargetLang] = useState('en')
+  const [targetLang, setTargetLang] = useState(DEFAULT_LANGUAGE)
   const [style, setStyle] = useState('general')
-  const { candidates, selected, setSelected, loading, error, translate } = useTranslate()
+  const { candidates, selected, setSelected, result, pending, error, inputHint, translate } = useTranslate()
 
   useEffect(() => {
-    fetchStyles().then(setStyles).catch(() => {})
+    fetchStyles().then(setStyleMap).catch(() => {})
   }, [])
 
+  const isLong = text.length > SHORT_LIMIT
+  const isLoadingLong = pending?.isLong ?? false
+  // 장문 로딩 중엔 진행 중인 요청, 그 외엔 결과를 만든 요청 기준으로 헤더를 그림
+  const shownRequest = isLoadingLong ? pending : result
+  const resultInfo = shownRequest && {
+    styleLabel: styleMap[shownRequest.style] ?? shownRequest.style,
+    languageLabel: LANGUAGES.find((language) => language.code === shownRequest.targetLang)?.label,
+    sourceLength: shownRequest.sourceLength,
+  }
+
+  function handleTranslate() {
+    translate({ text, targetLang, style })
+  }
+
   return (
-    <div className="page">
-      <header className="page__header">
-        <span className="eyebrow">STYLE TRANSLATOR — BETA</span>
-        <h1>AI Translator</h1>
-        <p className="subtitle">문장을 넣고 스타일을 고르면, 그 말투로 다시 바꿔 드립니다.</p>
-      </header>
-
-      <main className="panel">
-        <textarea
-          className="input-area"
-          placeholder="문장을 입력하세요"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          rows={5}
+    <div className={styles.page}>
+      <Header />
+      <StyleCarousel styles={styleMap} value={style} onChange={setStyle} />
+      <main className={styles.main}>
+        <InputPanel
+          text={text}
+          onTextChange={setText}
+          onSubmit={handleTranslate}
+          hint={inputHint}
+          isLong={isLong}
+          counterLimit={isLong ? MAX_LENGTH : SHORT_LIMIT}
           maxLength={MAX_LENGTH}
+          controls={
+            <>
+              <LangToggle languages={LANGUAGES} value={targetLang} onChange={setTargetLang} />
+              <Pill type="chip" className={styles.styleChip}>{styleMap[style] ?? style}</Pill>
+            </>
+          }
+          action={<PlayButton isLoading={pending !== null} onClick={handleTranslate} />}
         />
-
-        <div className="controls">
-          <div className="control">
-            <label htmlFor="lang">언어</label>
-            <select id="lang" value={targetLang} onChange={(e) => setTargetLang(e.target.value)}>
-              {LANGUAGES.map((lang) => (
-                <option key={lang.code} value={lang.code}>{lang.label}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="control">
-            <label htmlFor="style">스타일</label>
-            <select id="style" value={style} onChange={(e) => setStyle(e.target.value)}>
-              {Object.entries(styles).map(([key, label]) => (
-                <option key={key} value={key}>{label}</option>
-              ))}
-            </select>
-          </div>
-
-          <button
-            className="translate-btn"
-            onClick={() => translate({ text, targetLang, style })}
-            disabled={loading}
-          >
-            {loading ? '변환 중…' : '변환하기'}
-          </button>
-        </div>
-
-        {error && <p className="error" role="alert">{error}</p>}
-
-        {candidates.length > 0 && (
-          <div className="result">
-            <span className="result__label">
-              결과 · {styles[style] ?? style}
-              {candidates.length > 1 && ' · 마음에 드는 번역을 고르세요'}
-            </span>
-            {candidates.map((candidate, i) => (
-              <button
-                key={i}
-                type="button"
-                className="candidate"
-                aria-pressed={selected === i}
-                onClick={() => setSelected(i)}
-              >
-                <p className="result__text">{candidate}</p>
-              </button>
-            ))}
-          </div>
-        )}
+        <ResultPanel
+          candidates={candidates}
+          selected={selected}
+          onSelect={setSelected}
+          error={error}
+          isTranslating={pending !== null}
+          isLoadingLong={isLoadingLong}
+          info={resultInfo}
+        />
       </main>
-
-      <footer className="page__footer">
-        <span>백엔드: FastAPI + Gemini API</span>
-      </footer>
+      <footer className={`${styles.footer} ${typography.uiFooter}`}>© 2026 Style Translator · FastAPI + Gemini API</footer>
     </div>
   )
 }

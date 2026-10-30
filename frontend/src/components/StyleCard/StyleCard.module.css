@@ -1,0 +1,152 @@
+/* ── Size=Regular ─────────────────────────────────────────── */
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 130px;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-xs) var(--space-sm);
+  border: 1px solid var(--color-glass-border);
+  border-radius: var(--radius-card);
+  background: var(--color-glass-bg-strong);
+  white-space: nowrap;
+  cursor: pointer;
+  /* transform·opacity는 캐러셀이 배치에 씀 — 같은 요소라 transition은 여기서 함께 선언 */
+  transition:
+    transform 0.35s ease,
+    opacity 0.35s ease,
+    width 0.35s ease,
+    padding 0.35s ease;
+}
+
+.card[data-state='active'] {
+  width: 236px;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-sm) var(--space-md);
+  background: var(--color-glass-bg);
+  box-shadow: var(--shadow-card);
+  cursor: default;
+}
+
+/* 커버 정의가 없는(백엔드에 새로 추가된) 스타일은 fallback 색 */
+.cover {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 150px;
+  border-radius: var(--radius-cover);
+  background: var(--color-cover-fallback);
+  color: var(--color-cover-fallback-ink);
+  overflow: hidden;
+  transition: height 0.35s ease;
+}
+
+.card[data-state='active'] .cover {
+  height: 212px;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: var(--space-md) var(--space-md) var(--space-lg);
+}
+
+.card[data-style='general'] .cover {
+  background: var(--color-cover-general);
+  color: var(--color-cover-general-ink);
+}
+
+.card[data-style='formal'] .cover {
+  background: var(--color-cover-formal);
+  color: var(--color-cover-formal-ink);
+}
+
+.card[data-style='sns'] .cover {
+  background: var(--color-cover-sns);
+  color: var(--color-cover-sns-ink);
+}
+
+.number {
+  display: none;
+}
+
+.glyph {
+}
+
+.name {
+  color: var(--color-text-default);
+}
+
+.description {
+  display: none;
+  color: var(--color-text-muted);
+}
+
+.card[data-state='active'] .number,
+.card[data-state='active'] .description {
+  display: inline;
+}
+
+.card[data-state='active'] .glyph {
+  font: var(--text-cover-glyph-lg);
+}
+
+.card[data-state='active'] .name {
+  font: var(--text-card-name);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .cover {
+    transition: none;
+  }
+}
+
+/* ── Size=Compact (모바일) ────────────────────────────────── */
+@media (max-width: 640px) {
+  .card {
+    width: 80px;
+    gap: var(--space-2xs);
+    padding: var(--space-2xs) var(--space-2xs) var(--space-xs);
+    border-radius: var(--radius-cover);
+  }
+
+  .card[data-state='active'] {
+    width: 144px;
+    gap: var(--space-xs);
+    padding: var(--space-xs) var(--space-xs) var(--space-sm);
+  }
+
+  .cover {
+    height: 92px;
+    border-radius: var(--radius-sm);
+  }
+
+  .card[data-state='active'] .cover {
+    height: 128px;
+    padding: var(--space-xs) var(--space-xs) var(--space-sm);
+  }
+
+  .number {
+    font: var(--text-mono-micro);
+  }
+
+  .glyph {
+    font: var(--text-cover-glyph-sm);
+  }
+
+  .card[data-state='active'] .glyph {
+    font: var(--text-cover-glyph-md);
+  }
+
+  .name {
+    font: var(--text-card-name-xs);
+  }
+
+  .card[data-state='active'] .name {
+    font: var(--text-card-name-sm);
+  }
+
+  .card[data-state='active'] .description {
+    display: none;
+  }
+}

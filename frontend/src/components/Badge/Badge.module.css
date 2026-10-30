@@ -1,0 +1,12 @@
+.badge {
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--color-text-muted);
+  border-radius: var(--radius-pill);
+  color: var(--color-text-default);
+  white-space: nowrap;
+}
+
+.badge[data-tone='accent'] {
+  border-color: var(--color-brand-amber);
+  color: var(--color-brand-amber);
+}

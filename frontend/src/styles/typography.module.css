@@ -1,0 +1,41 @@
+/* 텍스트 스타일 클래스 — Figma `ST/*`와 1:1 (`ST/card/name-sm` → `cardNameSm`).
+   값(굵기·크기·행간)은 tokens.css의 `--text-*`, 자간만 여기서 지정합니다.
+
+   쓰는 법: 컴포넌트 JSX에서 className으로 붙입니다.
+     import typography from '../../styles/typography.module.css'
+     <span className={`${styles.name} ${typography.cardNameSm}`}>
+   뷰포트·상태에 따라 바뀌면 컴포넌트 CSS에서 `font: var(--text-card-name);`로 덮어씁니다.
+   자간은 em 단위라 같은 계열(Regular ↔ Compact)끼리 공유됩니다.
+
+   `typography` 레이어에 있어서 컴포넌트 CSS(레이어 밖)의 덮어쓰기가 CSS 순서와 무관하게 항상 이깁니다. */
+
+@layer typography {
+  .logo { font: var(--text-logo); }
+  .headingSm { font: var(--text-heading-sm); }
+
+  .monoEyebrow { font: var(--text-mono-eyebrow); letter-spacing: 0.15em; }
+  .monoLabel { font: var(--text-mono-label); letter-spacing: 0.08em; }
+  .monoMicro { font: var(--text-mono-micro); letter-spacing: 0.08em; }
+  .monoNumber { font: var(--text-mono-number); }
+
+  .coverGlyphLg { font: var(--text-cover-glyph-lg); letter-spacing: -0.04em; }
+  .coverGlyphMd { font: var(--text-cover-glyph-md); letter-spacing: -0.04em; }
+  .coverGlyphSm { font: var(--text-cover-glyph-sm); letter-spacing: -0.04em; }
+
+  .cardName { font: var(--text-card-name); }
+  .cardNameSm { font: var(--text-card-name-sm); }
+  .cardNameXs { font: var(--text-card-name-xs); }
+  .cardSub { font: var(--text-card-sub); }
+
+  .bodySource { font: var(--text-body-source); }
+  .bodySourceMd { font: var(--text-body-source-md); }
+  .bodyResult { font: var(--text-body-result); letter-spacing: -0.01em; }
+  .bodyResultMobile { font: var(--text-body-result-mobile); letter-spacing: -0.01em; }
+  .bodyLongform { font: var(--text-body-longform); letter-spacing: -0.01em; }
+  .bodyLongformMobile { font: var(--text-body-longform-mobile); letter-spacing: -0.01em; }
+
+  .uiPill { font: var(--text-ui-pill); }
+  .uiSegment { font: var(--text-ui-segment); }
+  .uiCaptionStrong { font: var(--text-ui-caption-strong); }
+  .uiFooter { font: var(--text-ui-footer); }
+}

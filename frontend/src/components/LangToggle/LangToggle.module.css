@@ -1,0 +1,43 @@
+.toggle {
+  display: flex;
+  gap: var(--space-3xs);
+  padding: var(--space-2xs);
+  border: 1px solid var(--color-glass-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-glass-bg-strong);
+}
+
+.segment {
+  height: 32px;
+  padding: 0 var(--space-md);
+  border: none;
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.segment[aria-checked='true'] {
+  background: var(--color-control-selected);
+  color: var(--color-ink);
+}
+
+.short {
+  display: none;
+}
+
+/* Size=Compact — 모바일은 코드 표기 (EN/KO/JA/ZH) */
+@media (max-width: 640px) {
+  .segment {
+    padding: 0 var(--space-xs);
+  }
+
+  .full {
+    display: none;
+  }
+
+  .short {
+    display: inline;
+  }
+}

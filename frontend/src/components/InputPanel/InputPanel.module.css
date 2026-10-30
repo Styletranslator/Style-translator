@@ -1,0 +1,122 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-lg) var(--space-md) var(--space-md) var(--space-lg);
+  border: 1px solid var(--color-glass-border);
+  border-radius: var(--radius-panel);
+  background: var(--color-glass-bg);
+  -webkit-backdrop-filter: var(--blur-glass);
+  backdrop-filter: var(--blur-glass);
+}
+
+.labelRow {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  color: var(--color-text-muted);
+}
+
+.longNotice,
+.longCounter {
+  color: var(--color-brand-amber);
+}
+
+.longCounter {
+  display: none;
+}
+
+.source {
+  width: 100%;
+  min-height: 1.4em;
+  max-height: 200px;
+  padding: 0;
+  border: none;
+  outline: none;
+  resize: none;
+  background: none;
+  field-sizing: content;
+}
+
+.source::placeholder {
+  color: var(--color-text-faint);
+}
+
+.panel:focus-within {
+  border-color: var(--color-text-muted);
+}
+
+/* 장문은 패널이 끝없이 늘지 않게 높이 고정 + 내부 스크롤 */
+.panel[data-long='true'] .source {
+  height: 200px;
+  font: var(--text-body-source-md);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-glass-border) transparent;
+}
+
+.hint {
+  margin: 0;
+  color: var(--color-brand-amber);
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+}
+
+.controlLabel {
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.longBadge {
+  flex-shrink: 0;
+}
+
+.counter {
+  margin-left: auto;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.panel[data-long='true'] .counter {
+  color: var(--color-brand-amber);
+}
+
+@media (max-width: 640px) {
+  .panel {
+    gap: var(--space-sm);
+    padding: var(--space-md);
+  }
+
+  .source {
+    font: var(--text-body-source-md);
+  }
+
+  .controlLabel,
+  .longNotice,
+  .longBadge {
+    display: none;
+  }
+
+  /* 컨트롤 줄 폭이 모자라 장문 카운터를 원문 라벨 줄로 옮김 */
+  .longCounter {
+    display: inline;
+  }
+
+  .panel[data-long='true'] .counter {
+    display: none;
+  }
+
+  .controls {
+    gap: var(--space-xs);
+    margin-top: var(--space-lg);
+  }
+
+  .panel[data-long='true'] .controls {
+    justify-content: space-between;
+  }
+}

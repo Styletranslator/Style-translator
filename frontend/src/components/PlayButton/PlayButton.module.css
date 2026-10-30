@@ -1,0 +1,59 @@
+.button {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--color-brand-amber);
+  box-shadow: var(--shadow-card);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.button:hover:not(:disabled) {
+  transform: scale(1.05);
+}
+
+.button:disabled {
+  opacity: 0.85;
+  cursor: progress;
+}
+
+/* 재생 중 이퀄라이저처럼 막대가 오르내리는 느낌 */
+.loadingIcon {
+  animation: pulse 0.9s ease-in-out infinite alternate;
+}
+
+@keyframes pulse {
+  from {
+    transform: scaleY(0.6);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button {
+    transition: none;
+  }
+
+  .loadingIcon {
+    animation: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .button {
+    width: 52px;
+    height: 52px;
+  }
+
+  .button img {
+    width: 20px;
+    height: 20px;
+  }
+}
